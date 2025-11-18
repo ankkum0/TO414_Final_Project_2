@@ -288,9 +288,14 @@ confusionMatrix(
 ### Decision Tree
 ```{r}
 #Not working yet
-#library(C50) # We need this library to run a decision tree model
-#dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train)
-#plot(churn_dt_model)
+library(C50) # We need this library to run a decision tree model
+summary(job_train)
+str(job_train)
+dt_model <- C5.0(fraudulent ~ title + company_profile + description + requirements, data = job_train)
+
+# push through matrix dummy, then push through (janintor - clean names)
+
+plot(dt_model)
 ```
 
 
