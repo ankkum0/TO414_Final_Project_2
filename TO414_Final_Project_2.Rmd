@@ -1,10 +1,304 @@
 ---
 title: "TO414_Final_Project_2"
-author: "Ankita Kumar"
+author: "Group 5: The M.A.A.A.D. Koderz (Matthew Burger, Andrew Schlitter, Ankita Kumar, Ashton Howard, Daphne Fabre, Kushaal Sharma)"
 date: "2025-11-18"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: paper
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+## Let's Evaluate the Viability of the Dataset (Using Logistic Regression)
+
+### Step 0: What's the point?
+Now that we have picked out a data set, let's see if it will take well to prediction. We will do this by creating a simple logistic regression model and see if it has any accuracy/prediction power. 
+
+### Step 1: Load Data
+```{r}
+job <- read.csv("fake_job_postings.csv") # Let's store the data in the job object so we can interact with it
+```
+
+### Step 2: Clean Data
+
+#### Explore Data
+```{r}
+str(job) # Let's get a sense of columns and data types
+summary(job)
+```
+
+#### Change and Delete Stuff
+```{r}
+job_clean <- job # make a copy
+
+job_clean$job_id <- NULL # This is not necessary, so let's delete it
+job_clean$title <- nchar(job_clean$title) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job_clean$location <- as.factor(job_clean$location)
+job_clean$department <- as.factor(job_clean$department)
+job_clean$salary_range <- as.factor(job_clean$salary_range)
+job_clean$company_profile <- nchar(job_clean$company_profile) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job_clean$description <- nchar(job_clean$description) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job_clean$requirements <- nchar(job_clean$requirements) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job_clean$benefits <- nchar(job_clean$benefits) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job_clean$employment_type <- as.factor(job_clean$employment_type)
+job_clean$required_experience <- as.factor(job_clean$required_experience)
+job_clean$required_education <- as.factor(job_clean$required_education)
+job_clean$industry <- as.factor(job_clean$industry)
+job_clean$function. <- as.factor(job_clean$function.)
+job_clean$benefits <- ifelse(is.na(job_clean$benefits), mean(job_clean$benefits, na.rm = T), job_clean$benefits)
+```
+
+
+
+#### Check Data
+```{r}
+str(job_clean)
+summary(job_clean)
+
+# The following columns have too many factor levels (will have to clean up for real model). For this rough model, let's just remove them for now. If a column has too many factor levels it will take the logistic regression model an extremely long time to run. Any column with more than 40 factor levels was removed. 
+
+# Grab the country - NOT WORKING YET
+#job_clean$loc_country <- substr(job_clean$location, 1, 2)
+#job_clean$loc_country <- as.factor(job_clean$loc_country)
+#loc_count <- as.data.frame(table(job_clean$loc_country))
+
+#sort(table(job_clean$loc_country))
+
+#job_clean$loc_country_val <- loc_count[job_clean$loc_count, 2]
+#job_clean$loc_country_new <- ifelse((job_clean$loc_country_val > 10), job_clean$loc_country, "Other")
+
+job_clean$location <- NULL
+
+
+job_clean$department <- NULL
+job_clean$salary_range <- NULL
+job_clean$industry <- NULL
+
+
+str(job_clean)
+summary(job_clean)
+
+
+# Data is looking better
+```
+
+### Step 3: Split Data
+Let's do a 70-30 split.
+```{r}
+trainprop <- 0.7 # This is the proportion of data we want in our training data set
+set.seed(12345) # Let's make the randomization "not so random"
+train_rows <- sample(1:nrow(job_clean), trainprop*nrow(job_clean)) # Get the rows for the training data
+
+job_train <- job_clean[train_rows, ] # Store the training data
+job_test <- job_clean[-train_rows, ] # Store the testing data
+
+# Let's do a quick check that random split worked (using dependent variable)
+summary(job_train$fraudulent)
+summary(job_test$fraudulent)
+```
+The proportion of left (mean value) is similar between job_train and job_test, so the random split worked.
+
+### Logistic Regression
+#### Step 4: Build a Model 
+
+```{r}
+m1 <- glm(fraudulent ~ ., data = job_train, family = "binomial")
+```
+
+#### Step 5: Predict
+```{r}
+# We need a model (m1) and a test data (hr_test)
+job_pred <- predict(m1, job_test, type = "response")
+pred_cutoff <- 0.3 # This is the probability threshold at which we assign the result as 1/positive/left
+job_bin_pred <- ifelse(job_pred >= pred_cutoff, 1, 0)
+```
+
+#### Step 6: Evaluate Model
+Let's build a confusion matrix
+```{r}
+library(caret) # We need this library to build a confusion matrix
+confusionMatrix(as.factor(job_bin_pred), as.factor(job_test$fraudulent), positive = "1")
+```
+
+### KNN
+
+```{r}
+library(caret)
+library(pROC)
+
+set.seed(12345)
+
+
+if (!exists("job_train") || !exists("job_test")) {
+  if (!exists("job")) stop("Provide `job` or predefine `job_train`/`job_test`.")
+  idx <- createDataPartition(job$fraudulent, p = 0.7, list = FALSE)
+  job_train <- job[idx, ]
+  job_test  <- job[-idx, ]
+}
+
+
+to_yes <- function(x) ifelse(x %in% c(1,"1","Yes","TRUE","True",TRUE), "Yes", "No")
+job_train$fraudulent <- factor(to_yes(job_train$fraudulent), levels = c("No","Yes"))
+job_test$fraudulent  <- factor(to_yes(job_test$fraudulent),  levels = c("No","Yes"))
+
+
+pred_cols <- setdiff(names(job_train), "fraudulent")
+num_cols  <- pred_cols[sapply(job_train[, pred_cols, drop=FALSE], is.numeric)]
+if (length(num_cols) == 0) stop("No numeric predictors found. Add some numeric features first.")
+
+x_train <- job_train[, num_cols, drop = FALSE]
+y_train <- job_train$fraudulent
+x_test  <- job_test[,  num_cols, drop = FALSE]
+y_test  <- job_test$fraudulent
+
+
+ctrl <- trainControl(
+  method = "cv",
+  number = 3,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = "final"
+)
+
+
+k_grid <- data.frame(k = c(5, 9, 13, 17, 21))
+
+
+set.seed(12345)
+knn_fit <- train(
+  x = x_train,
+  y = y_train,
+  method = "knn",
+  metric = "ROC",
+  trControl = ctrl,
+  preProcess = c("zv","center","scale"),
+  tuneGrid = k_grid
+)
+
+print(knn_fit)
+plot(knn_fit)  
+
+
+prob <- predict(knn_fit, newdata = x_test, type = "prob")[, "Yes"]
+cls05 <- factor(ifelse(prob >= 0.50, "Yes", "No"), levels = c("No","Yes"))
+cls03 <- factor(ifelse(prob >= 0.30, "Yes", "No"), levels = c("No","Yes"))
+
+cm05 <- confusionMatrix(cls05, y_test, positive = "Yes")
+cm03 <- confusionMatrix(cls03, y_test, positive = "Yes")
+
+cat("\nConfusion Matrix @ 0.50:\n"); print(cm05)
+cat("\nConfusion Matrix @ 0.30:\n"); print(cm03)
+
+
+roc_obj <- roc(response = y_test, predictor = prob, levels = c("No","Yes"), direction = "<")
+cat("\nAUC:\n"); print(auc(roc_obj))
+plot(roc_obj, main = "KNN ROC (Numeric predictors)")
+```
+
+### ANN
+```{r, cache=TRUE} 
+# I believe cache=TRUE allows this data to be saved
+
+job_train_num <- job_train # Name for numeric training data
+job_train_num[] <- lapply(job_train_num, function(x) if (is.factor(x)) as.numeric(as.integer(x)) else x) # Makes sure everything in training data is numeric
+job_test_num <- job_test # Name for numeric testing data
+job_test_num[] <- lapply(job_test_num, function(x) if (is.factor(x)) as.numeric(as.integer(x)) else x) # Makes sure everything in testing data is numeric
+
+
+job_train_num$fraudulent <- as.numeric(job_train_num$fraudulent) # Makes sure everything in testing data is numeric
+job_test_num$fraudulent <- as.numeric(job_test_num$fraudulent) # Makes sure everything in testing data is numeric
+
+
+normalize <- function(x) (x - min(x)) / (max(x) - min(x)) # Makes sure every data entry is between 0 & 1
+job_train_num <- as.data.frame(lapply(job_train_num, normalize)) # Normalize the training data
+job_test_num <- as.data.frame(lapply(job_test_num, normalize)) # Normalize the testing data
+
+
+job_train_num <- job_train_num[, sapply(job_train_num, function(x) length(unique(x)) > 1)]
+job_test_num <- job_test_num[, names(job_train_num)]
+
+
+# Build neural net
+
+
+library(neuralnet)
+set.seed(12345)
+ANN_mod <- neuralnet(fraudulent ~ ., data = job_train_num, lifesign = "full", stepmax = 1e8)
+
+
+saveRDS(ANN_mod, "ANNModel.RDS") # Saves the model to make it faster for the future
+
+
+# Plot
+
+
+plot(ANN_mod) # Plot the model
+
+
+# Prediction
+
+
+job_ANN <- predict(ANN_mod, job_test_num) # Makes a prediction
+summary(job_ANN) # Summary of prediction
+job_bin_ANN <- ifelse(job_ANN >= 0.50, 1, 0) # Makes the prediction binary
+summary(job_bin_ANN) # Summary of binary prediction
+
+
+# Evaluate
+
+
+library(caret) 
+confusionMatrix(as.factor(job_bin_ANN), as.factor(job_test_num$fraudulent), positive = "1")
+
+```
+
+
+### SVM
+```{r}
+
+library(kernlab) # We need this library to run a SVM model
+
+# Train SVM with radial kernel
+m1_svm <- ksvm(fraudulent ~ ., data = job_train, kernel = "rbfdot", prob.model = TRUE)
+
+# Remove rows with missing values in predictors before prediction
+na_rows <- !complete.cases(job_test)
+job_test_clean <- job_test[!na_rows, ]
+
+# Get probabilities for each class
+job_prob_pred <- predict(m1_svm, job_test_clean, type = "probabilities")
+
+# Convert to binary predictions using 0.3 threshold for the positive class (fraudulent = 1)
+job_bin_pred_svm <- ifelse(job_prob_pred[, 1] >= 0.3, "1", "0")
+
+# Confusion matrix
+confusionMatrix(
+  factor(job_bin_pred_svm, levels = c("0", "1")),
+  factor(job_test_clean$fraudulent, levels = c(0, 1)),
+  positive = "1"
+)
+```
+
+
+### Decision Tree
+```{r}
+#Not working yet
+#library(C50) # We need this library to run a decision tree model
+#dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train)
+#plot(churn_dt_model)
+```
+
+
+### Random Forest
+```{r}
+#Not working yet
+#library(randomForest)
+#m2 <- randomForest(as.factor(fraudulent) ~ ., data = job_train)
+#forest_pred <- predict(m2, job_test)
+#confusionMatrix(as.factor(forest_pred), as.factor(job_test$fraudulent), positive = "1")
+```
+
