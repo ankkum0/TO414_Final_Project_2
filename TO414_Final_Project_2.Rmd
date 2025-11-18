@@ -296,11 +296,10 @@ confusionMatrix(
 
 ### Random Forest
 ```{r}
-#Not working yet
 library(caret)
 library(randomForest)
 m2 <- randomForest(as.factor(fraudulent) ~ ., data = job_train)
 forest_pred <- predict(m2, job_test)
-confusionMatrix(as.factor(forest_pred), as.factor(job_test$fraudulent), positive = "1")
+confusionMatrix(as.factor(forest_pred), as.factor(job_test$fraudulent), positive = "Yes")
 ```
 
