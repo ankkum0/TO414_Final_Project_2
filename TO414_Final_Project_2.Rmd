@@ -232,6 +232,7 @@ ANN_mod <- neuralnet(fraudulent ~ ., data = job_train_num, lifesign = "full", st
 
 saveRDS(ANN_mod, "ANNModel.RDS") # Saves the model to make it faster for the future
 
+ANN_mod <- readRDS("ANNModel.RDS")
 
 # Plot
 

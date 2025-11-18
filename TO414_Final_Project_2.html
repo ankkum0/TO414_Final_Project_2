@@ -2006,9 +2006,10 @@ ANN_mod &lt;- neuralnet(fraudulent ~ ., data = job_train_num, lifesign = &quot;f
 <pre><code>## hidden: 1    thresh: 0.01    rep: 1/1    steps:    1000  min thresh: 0.0934489913101009
 ##                                                    2000  min thresh: 0.0283388790181169
 ##                                                    3000  min thresh: 0.0160221898376374
-##                                                    3699  error: 223.09788    time: 2.22 secs</code></pre>
+##                                                    3699  error: 223.09788    time: 2.39 secs</code></pre>
 <pre class="r"><code>saveRDS(ANN_mod, &quot;ANNModel.RDS&quot;) # Saves the model to make it faster for the future
 
+ANN_mod &lt;- readRDS(&quot;ANNModel.RDS&quot;)
 
 # Plot
 
