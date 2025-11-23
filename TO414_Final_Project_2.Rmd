@@ -102,7 +102,7 @@ job_scaled <- as.data.frame(lapply(job_dummy, minmax))
 ```
 
 
-### Check Data
+### Final Data Check
 ```{r}
 # Data for Logistic Regression, Decision Tree, SVM, and Random Forest models
 str(job)
@@ -163,11 +163,28 @@ lr_bin_pred <- ifelse(lr_pred >= lr_pred_cutoff, 1, 0)
 ```
 
 ### Decision Tree Model
-```{r, eval=FALSE, message=FALSE}
+```{r, message=FALSE}
 library(C50) # We need this library to run a decision tree model
 
 # Build Model (without weights)
-dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train)
+#dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train)
+
+dt_model <- C5.0(as.factor(fraudulent) ~ title 
+                 + company_profile 
+                 + description 
+                 + requirements
+                 + benefits
+                 + telecommuting
+                 + has_company_logo
+                 + has_questions
+                 #+ employment_type <- causes problem
+                 #+ required_experience <- causes problem
+                 #+ required_education <- causes problem
+                 #+ function.<- causes problem
+                 , data = job_train)
+
+# push through matrix dummy, then push through (janintor - clean names)
+
 plot(dt_model)
 
 # Predict (without weights)
@@ -178,7 +195,15 @@ cost_matrix <- matrix(c(0, 1, 4, 0), nrow = 2)
 
 cost_matrix # Check the matrix looks correct 
 
-dt_cost_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train, costs = cost_matrix)
+dt_cost_model <- C5.0(as.factor(fraudulent) ~ title 
+                 + company_profile 
+                 + description 
+                 + requirements
+                 + benefits
+                 + telecommuting
+                 + has_company_logo
+                 + has_questions, data = job_train, costs = cost_matrix)
+
 plot(dt_cost_model)
 
 # Predict (with weights)
@@ -262,7 +287,7 @@ ANN_bin_pred <- ifelse(ANN_pred >= ANN_pred_cutoff, 1, 0)
 ```
 
 ## Step 5.5: Combine, Split, Build, & Predict (Stacked Model)
-```{r, eval=FALSE}
+```{r}
 # Combine the predictions of the 6 individual models into a new data frame
 stacked_data <- data.frame(
       lr_pred = c(lr_pred),
@@ -327,7 +352,7 @@ cm_lr
 ```
 
 ### Decision Tree Model
-```{r, eval=FALSE}
+```{r}
 # Decision Tree Model (without weights)
 cm_unweighted_dt <- confusionMatrix(as.factor(dt_pred), as.factor(job_test$fraudulent), positive = "1")
 cm_unweighted_dt
@@ -362,7 +387,7 @@ cm_ANN
 ```
 
 ### Stacked Model
-```{r, eval=FALSE}
+```{r}
 # Raw data values
 cm_unweight_stacked <- confusionMatrix(as.factor(stacked_unweighted_pred), as.factor(stacked_test$actual), positive = "1")
 cm_unweight_stacked
@@ -451,18 +476,4 @@ roc_obj <- roc(response = y_test, predictor = prob, levels = c("No","Yes"), dire
 cat("\nAUC:\n"); print(auc(roc_obj))
 plot(roc_obj, main = "KNN ROC (Numeric predictors)")
 ```
-
-### Decision Tree
-```{r, eval=FALSE}
-#Not working yet
-library(C50) # We need this library to run a decision tree model
-summary(job_train)
-str(job_train)
-dt_model <- C5.0(fraudulent ~ title + company_profile + description + requirements, data = job_train)
-
-# push through matrix dummy, then push through (janintor - clean names)
-
-plot(dt_model)
-```
-
 
