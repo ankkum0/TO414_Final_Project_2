@@ -6,123 +6,369 @@ output:
   html_document:
     toc: true
     toc_float: true
-    theme: paper
+    theme: cerulean
+    code_folding: show # Shows all code chunks by default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Let's Evaluate the Viability of the Dataset (Using Logistic Regression)
+## Prediciting Whether Job Postings are Fradulent 
 
-### Step 0: What's the point?
-Now that we have picked out a data set, let's see if it will take well to prediction. We will do this by creating a simple logistic regression model and see if it has any accuracy/prediction power. 
+## Step 0: What's the point?
 
-### Step 1: Load Data
+### Situation:
+
+### Data Issues:
+
+### Goal:
+
+### Models:
+
+### Outcome:
+
+## Step 1: Load Data
 ```{r}
-job <- read.csv("fake_job_postings.csv") # Let's store the data in the job object so we can interact with it
+# Let's store the data in the job object so we can interact with it
+job <- read.csv("fake_job_postings.csv") 
+# We don't want to set stringsAsFactors to true, since there are some string data that should not be converted to factors that we will need to deal with while cleaning the data.
 ```
 
-### Step 2: Clean Data
+## Step 2: Clean Data
 
-#### Explore Data
+### Explore Data
 ```{r}
 str(job) # Let's get a sense of columns and data types
 summary(job)
 ```
 
-#### Change and Delete Stuff
+### Modify Data (Change and Delete)
 ```{r}
-job_clean <- job # make a copy
-
-job_clean$job_id <- NULL # This is not necessary, so let's delete it
-job_clean$title <- nchar(job_clean$title) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job_clean$location <- as.factor(job_clean$location)
-job_clean$department <- as.factor(job_clean$department)
-job_clean$salary_range <- as.factor(job_clean$salary_range)
-job_clean$company_profile <- nchar(job_clean$company_profile) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job_clean$description <- nchar(job_clean$description) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job_clean$requirements <- nchar(job_clean$requirements) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job_clean$benefits <- nchar(job_clean$benefits) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job_clean$employment_type <- as.factor(job_clean$employment_type)
-job_clean$required_experience <- as.factor(job_clean$required_experience)
-job_clean$required_education <- as.factor(job_clean$required_education)
-job_clean$industry <- as.factor(job_clean$industry)
-job_clean$function. <- as.factor(job_clean$function.)
-job_clean$benefits <- ifelse(is.na(job_clean$benefits), mean(job_clean$benefits, na.rm = T), job_clean$benefits)
+job$job_id <- NULL # This is not necessary, so let's delete it
+job$title <- nchar(job$title) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$location <- as.factor(job$location)
+job$department <- as.factor(job$department)
+job$salary_range <- as.factor(job$salary_range)
+job$company_profile <- nchar(job$company_profile) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$description <- nchar(job$description) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$requirements <- nchar(job$requirements) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$benefits <- nchar(job$benefits) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$employment_type <- as.factor(job$employment_type)
+job$required_experience <- as.factor(job$required_experience)
+job$required_education <- as.factor(job$required_education)
+job$industry <- as.factor(job$industry)
+job$function. <- as.factor(job$function.)
+job$benefits <- ifelse(is.na(job$benefits), mean(job$benefits, na.rm = T), job$benefits)
 ```
 
-
-
-#### Check Data
+### Check Data
 ```{r}
-str(job_clean)
-summary(job_clean)
+str(job)
+summary(job)
 
 # The following columns have too many factor levels (will have to clean up for real model). For this rough model, let's just remove them for now. If a column has too many factor levels it will take the logistic regression model an extremely long time to run. Any column with more than 40 factor levels was removed. 
 
 # Grab the country - NOT WORKING YET
-#job_clean$loc_country <- substr(job_clean$location, 1, 2)
-#job_clean$loc_country <- as.factor(job_clean$loc_country)
-#loc_count <- as.data.frame(table(job_clean$loc_country))
+#job$loc_country <- substr(job$location, 1, 2)
+#job$loc_country <- as.factor(job$loc_country)
+#loc_count <- as.data.frame(table(job$loc_country))
 
-#sort(table(job_clean$loc_country))
+#sort(table(job$loc_country))
 
-#job_clean$loc_country_val <- loc_count[job_clean$loc_count, 2]
-#job_clean$loc_country_new <- ifelse((job_clean$loc_country_val > 10), job_clean$loc_country, "Other")
+#job$loc_country_val <- loc_count[job$loc_count, 2]
+#job$loc_country_new <- ifelse((job$loc_country_val > 10), job_clean$job, "Other")
 
-job_clean$location <- NULL
-
-
-job_clean$department <- NULL
-job_clean$salary_range <- NULL
-job_clean$industry <- NULL
+job$location <- NULL
+job$department <- NULL
+job$salary_range <- NULL
+job$industry <- NULL
 
 
-str(job_clean)
-summary(job_clean)
-
-
-# Data is looking better
 ```
 
-### Step 3: Split Data
-Let's do a 70-30 split.
+### Dummify and Scale Data for KNN and ANN Models
 ```{r}
+# We can use job for the Logistic Regression, Decision Tree, SVM Models, random forest, and Decision Trees
+
+# For the KNN and ANN models, we need to dummify and scale the data
+job_dummy <- as.data.frame(model.matrix(~ . -1, data = job)) 
+
+minmax <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+job_scaled <- as.data.frame(lapply(job_dummy, minmax))
+```
+
+
+### Check Data
+```{r}
+# Data for Logistic Regression, Decision Tree, SVM, and Random Forest models
+str(job)
+summary(job)
+
+# Data for KNN and ANN models
+str(job_scaled)
+summary(job_scaled)
+```
+
+
+## Step 3: Split Data
+```{r}
+# Let's do a 70-30 split.
+
 trainprop <- 0.7 # This is the proportion of data we want in our training data set
 set.seed(12345) # Let's make the randomization "not so random"
-train_rows <- sample(1:nrow(job_clean), trainprop*nrow(job_clean)) # Get the rows for the training data
+train_rows <- sample(1:nrow(job), trainprop*nrow(job)) # Get the rows for the training data. We can use train_rows for both job and job_scaled as both data sets have the same number of rows/observations. 
 
-job_train <- job_clean[train_rows, ] # Store the training data
-job_test <- job_clean[-train_rows, ] # Store the testing data
+# Train and test data for Logistic Regression, Decision Tree, SVM, and Random Forest Models
+job_train <- job[train_rows, ] # Store the training data
+job_test <- job[-train_rows, ] # Store the testing data
+
+# Train and test data for KNN and ANN models
+job_scaled_train <- job_scaled[train_rows, ] # Store the training data
+job_scaled_test <- job_scaled[-train_rows, ] # Store the testing data
 
 # Let's do a quick check that random split worked (using dependent variable)
 summary(job_train$fraudulent)
 summary(job_test$fraudulent)
-```
-The proportion of left (mean value) is similar between job_train and job_test, so the random split worked.
 
-### Logistic Regression
-#### Step 4: Build a Model 
+summary(job_scaled_train$fraudulent)
+summary(job_scaled_test$fraudulent)
 
-```{r}
-m1 <- glm(fraudulent ~ ., data = job_train, family = "binomial")
+# The mean value is similar between the train and test data sets signifying the split was done successfully
 ```
 
-#### Step 5: Predict
+## Step 4 & 5: Build a Model + Predict
+
+### Logistic Regression Model
+
 ```{r}
-# We need a model (m1) and a test data (hr_test)
-job_pred <- predict(m1, job_test, type = "response")
-pred_cutoff <- 0.3 # This is the probability threshold at which we assign the result as 1/positive/left
-job_bin_pred <- ifelse(job_pred >= pred_cutoff, 1, 0)
+# Build Model
+
+# Since we are trying to predict fraudulent, will have that be our response variable. Since we are using all other columns to predict fraudulent, those will be our predictor variables. 
+
+# Let's add some other combinations of predictors to increase the model's accuracy and sensitivity
+lr_model <- glm(fraudulent ~ ., data = job_train, family = "binomial")
+
+# Predict
+
+# standard model
+lr_pred <- predict(lr_model, job_test, type = "response")
+lr_pred_cutoff <- 0.5
+
+lr_bin_pred <- ifelse(lr_pred >= lr_pred_cutoff, 1, 0)
+
 ```
 
-#### Step 6: Evaluate Model
-Let's build a confusion matrix
+### Decision Tree Model
+```{r, message=FALSE}
+library(C50) # We need this library to run a decision tree model
+
+# Build Model (without weights)
+dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train)
+plot(dt_model)
+
+# Predict (without weights)
+dt_pred <- predict(dt_model, job_test)
+
+# Build Model (with weights)
+cost_matrix <- matrix(c(0, 1, 4, 0), nrow = 2) 
+
+cost_matrix # Check the matrix looks correct 
+
+dt_cost_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train, costs = cost_matrix)
+plot(dt_cost_model)
+
+# Predict (with weights)
+dt_weights_pred <- predict(dt_cost_model, job_test)
+
+```
+
+### SVM Model
 ```{r}
+library(kernlab) # We need this library to run a SVM model
+
+# Build Model
+SVM_model <- ksvm(fraudulent ~ ., data = job_train, kernel = "vanilladot")
+
+# Predict
+SVM_pred <- predict(SVM_model, job_test)
+
+SVM_pred_cutoff <- 0.5
+
+SVM_bin_prob <- ifelse(SVM_pred >= SVM_pred_cutoff, 1, 0)
+
+```
+
+### Random Forest
+```{r}
+library(randomForest) # We need this library to run a random forest model
+
+# Build Model
+rf_model <- randomForest(as.factor(fraudulent) ~ ., data = job_train, ntree = 2000, nodesize = 5)
+varImpPlot(rf_model) # From this plot, we can see that _____ are the biggest predictors of being fraudulent
+
+# Predict
+rf_pred <- predict(rf_model, job_test)
+
+```
+
+### KNN Model
+```{r}
+library(class) # We need this library to run a KNN model
+
+# Build Model + Predict
+KNN_pred <- knn(train = job_scaled_train[, -18],
+                  test = job_scaled_test[, -18],
+                  cl = job_scaled_train[, 18],
+                  k = 15, prob = TRUE) 
+
+KNN_prob <- ifelse(KNN_pred == "1", attr(KNN_pred, "prob"), 1 - attr(KNN_pred, "prob")) #to get most raw data
+
+KNN_pred_cutoff <- 0.5
+
+KNN_bin_prob <- ifelse(KNN_prob >= KNN_pred_cutoff, 1, 0)
+```
+
+### ANN Model
+```{r}
+library(neuralnet) # We need this library to run a ANN model
+
+# Build Model
+set.seed(12345) # Let's make the randomization "not so random"
+ANN_model_1 <- neuralnet(fraudulent ~ ., data = job_scaled_train, lifesign = "full", stepmax = 1e8)
+saveRDS(ANN_model_1, "ANNSporModel_1.RDS")
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+ANN_model_1 <- readRDS("ANNSporModel_1.RDS")
+
+plot(ANN_model_1, rep = "best")
+
+# Predict
+ANN_pred <- predict(ANN_model_1, job_scaled_test)
+ANN_pred_cutoff <- 0.4 # This is the probability threshold at which we assign the result as 1/positive
+ANN_bin_pred <- ifelse(ANN_pred >= ANN_pred_cutoff, 1, 0)
+
+```
+
+## Step 5.5: Combine, Split, Build, & Predict (Stacked Model)
+```{r}
+# Combine the predictions of the 6 individual models into a new data frame
+stacked_data <- data.frame(
+      lr_pred = c(lr_pred),
+      dt_pred = c(dt_pred), 
+      SVM_pred = c(SVM_pred),
+      rf_pred = c(rf_pred),
+      KNN_pred = c(KNN_prob), 
+      ANN_pred = c(ANN_pred),
+      actual = c(job_test$fraudulent)
+    )
+
+# Split the data in to train and test data
+
+# Let's do a 50-50 split, again (since there is such a small amount of data). We want there to be a somewhat decent amount of test data
+trainprop <- 0.5 # This is the proportion of data we want in our training data set
+set.seed(12345) # Let's make the randomization "not so random"
+stacked_train_rows <- sample(1:nrow(stacked_data), trainprop*nrow(stacked_data)) # Get the rows for the training data. We can use train_rows for both churn_data and churn_scaled as both data sets have the same number of rows/observations. 
+
+# Train and test data for the stacked model
+stacked_train <- stacked_data[stacked_train_rows, ] # Store the training data
+stacked_test <- stacked_data[-stacked_train_rows, ] # Store the testing data
+
+# Let's do a quick check that random split worked (using dependent variable)
+summary(stacked_train$actual)
+summary(stacked_test$actual)
+# The mean value is similar between the train and test data sets signifying the split was done successfully
+
+# Build and predict a decision tree model as a model stacked on top the other five models 
+
+# Build Model (without weights)
+stacked_unweighted_model <- C5.0(as.factor(actual) ~ ., data = stacked_train)
+plot(stacked_unweighted_model)
+
+# Build Model (with weights)
+stacked_cost_matrix <- matrix(c(0, 1, 3, 0), nrow = 2) 
+
+stacked_cost_matrix # Check the matrix looks correct 
+
+stacked_model <- C5.0(as.factor(actual) ~ ., data = stacked_train, costs = stacked_cost_matrix)
+plot(stacked_model)
+
+# Predict (with weights)
+stacked_unweighted_pred <- predict(stacked_unweighted_model, stacked_test)
+
+# Predict (with weights)
+stacked_pred <- predict(stacked_model, stacked_test)
+```
+
+## Step 6: Evaluate Model
+```{r class.source = 'fold-hide', message=FALSE}
+# Let's build some confusion matrices
+
 library(caret) # We need this library to build a confusion matrix
-confusionMatrix(as.factor(job_bin_pred), as.factor(job_test$fraudulent), positive = "1")
+
+library(knitr) # Load in library so that the table is formatted in an easy to read manner
 ```
+
+### Logistic Regression Model
+```{r}
+cm_lr <- confusionMatrix(as.factor(lr_bin_pred), as.factor(spor_test$alc), positive = "1")
+cm_lr
+```
+
+### Decision Tree Model
+```{r}
+# Decision Tree Model (without weights)
+cm_unweighted_dt <- confusionMatrix(as.factor(dt_pred), as.factor(spor_test$alc), positive = "1")
+cm_unweighted_dt
+
+# Decision Tree Model (with weights)
+cm_dt <- confusionMatrix(as.factor(dt_weights_pred), as.factor(spor_test$alc), positive = "1")
+cm_dt
+```
+
+### SVM Model
+```{r}
+cm_SVM <- confusionMatrix(as.factor(SVM_bin_prob), as.factor(spor_test$alc), positive = "1")
+cm_SVM
+```
+
+### Random Forest
+```{r}
+cm_rf <- confusionMatrix(as.factor(rf_pred), as.factor(spor_test$alc), positive = "1")
+cm_rf
+```
+
+### KNN Model
+```{r}
+cm_KNN <- confusionMatrix(as.factor(KNN_bin_prob), as.factor(spor_scaled_test[,18]), positive = "1")
+cm_KNN
+```
+
+### ANN Model
+```{r}
+cm_ANN <- confusionMatrix(as.factor(ANN_bin_pred), as.factor(spor_scaled_test$alc), positive = "1")
+cm_ANN
+```
+
+### Stacked Model
+```{r}
+# Raw data values
+cm_unweight_stacked <- confusionMatrix(as.factor(stacked_unweighted_pred), as.factor(stacked_test$actual), positive = "1")
+cm_unweight_stacked
+
+cm_stacked <- confusionMatrix(as.factor(stacked_pred), as.factor(stacked_test$actual), positive = "1")
+cm_stacked
+```
+
+## Step 7: Implement Model
+
+
+
+#OLD CODE
 
 ### KNN
 
