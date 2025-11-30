@@ -31,13 +31,15 @@ knitr::opts_chunk$set(echo = TRUE)
 ### Outcome:
 
 ## Step 1: Load Data
+We need to load the data into an object (`job`) so that we can interact with it. We don't want to set `stringsAsFactors` to true, since there are some string data that should not be converted to factors that we will need to deal with while cleaning the data.
+
 ```{r}
 # Let's store the data in the job object so we can interact with it
 job <- read.csv("fake_job_postings.csv") 
-# We don't want to set stringsAsFactors to true, since there are some string data that should not be converted to factors that we will need to deal with while cleaning the data.
 ```
 
 ## Step 2: Clean Data
+We need get a sense of the data, before we can start cleaning it. It is important to remove any columns that are unnecessary or would be data we should not use in our prediction models (e.g., data that would not be available to make predictions). It is also a good time to deal with NA data (if there are any). Also, for KNN and ANN model, it is important to dummify and scale the data. So, we will use `job` for the logistic regression, SVM, random forest, and decision tree models and `job_scaled` for the KNN and ANN models. After cleaning the data, it is good to double check the data to ensure the desired results are achieved. 
 
 ### Explore Data
 ```{r}
@@ -46,6 +48,8 @@ summary(job)
 ```
 
 ### Modify Data (Change and Delete)
+We want to remove columns that are irrelevant or that we will not have access to when using this model to predict the fraudulent outcome status. We also want to be careful about how we modify data as changing data into factors or other simplifications can result in information being lost (which will hurt the robustness of our models).
+
 ```{r}
 job$job_id <- NULL # This is not necessary, so let's delete it
 job$title <- nchar(job$title) # Since we are doing a rough model, instead of parsing the string, let's just get the length
@@ -117,6 +121,8 @@ summary(job_scaled)
 
 
 ## Step 3: Split Data
+After cleaning the data, we can split the data. We will do **70-30 split**. It is important that we split the data so that we can use a portion of the data to train the models and the remaining portion of the data to then test of efficacy of the models created. While we typically do a 50-50 split for the first split when making stacked/two level models, we are doing a 70-30 split in this case because we have almost 18,000 rows of data. There will be enough data to effectively train and test the decision tree model that will combine the six models being created at this point, even if a 70-30 split is used.
+
 ```{r}
 # Let's do a 70-30 split.
 
@@ -143,8 +149,10 @@ summary(job_scaled_test$fraudulent)
 ```
 
 ## Step 4 & 5: Build a Model + Predict
+Now that the data has been split, it is time to create the various models. We will be loading in any necessary libraries, then creating the models based on the training data (`job_train` and `job_scaled_train`). Once the models are trained on the data and then evaluated, we can then use them in the future to predict whether job postings are fraudulent. We will also improve/optimize these models, using different levers based on the model.
 
 ### Logistic Regression Model
+For the logistic regression model, we can improve the model by adding combinations of predictors and changing the `lr_pred_cutoff` value. We want to extract the log probabilities (`lr_pred`) for the stacked model, so that we have the most "raw" version of the predictions/results. 
 
 ```{r}
 # Build Model
@@ -165,6 +173,8 @@ lr_bin_pred <- ifelse(lr_pred >= lr_pred_cutoff, 1, 0)
 ```
 
 ### Decision Tree Model
+For the decision tree model, we can improve the model by utilizing a `cost_matrix` to change the weighting/ratio between false positive and false negative that the model is trying to balance/optimize. We will also create a decision tree model to use for the stacked model, as we want the results (`dt_pred`) without having placed our thumb on the scale. 
+
 ```{r, message=FALSE}
 library(C50) # We need this library to run a decision tree model
 
@@ -214,6 +224,8 @@ dt_weights_pred <- predict(dt_cost_model, job_test)
 ```
 
 ### SVM Model
+For the SVM model, I can improve the model by changing the kernel. To find the optimal kernel, it will involve a guess-and-check method. I can also improve the model by changing the `SVM_pred_cutoff` value. We want to extract the probabilities (`SVM_pred`) for the stacked model, so that we have the most "raw" version of the predictions/results. 
+
 ```{r}
 library(kernlab) # We need this library to run a SVM model
 
@@ -232,6 +244,8 @@ SVM_bin_prob <- ifelse(SVM_pred >= SVM_pred_cutoff, 1, 0)
 ```
 
 ### Random Forest
+For the random forest model, we can improve the model by modifying the `ntree` and `nodesize` values.
+
 ```{r}
 library(randomForest) # We need this library to run a random forest model
 
@@ -250,6 +264,8 @@ rf_pred <- predict(rf_model, job_test)
 ```
 
 ### KNN Model
+For the KNN model, we can improve the model by modifying the `k` value and changing the `KNN_pred_cutoff` value. We want to extract the probabilities (`KNN_prob`) for the stacked model, so that we have the most "raw" version of the predictions/results.
+
 ```{r}
 library(class) # We need this library to run a KNN model
 
@@ -267,6 +283,8 @@ KNN_bin_prob <- ifelse(KNN_prob >= KNN_pred_cutoff, 1, 0)
 ```
 
 ### ANN Model
+For the ANN model, we can improve the model by changing the number of nodes (e.g., `hidden = c(5, 3, 2)`) and changing the `ANN_pred_cutoff` value. We want to extract the fractional values (`ANN_pred`) for the stacked model, so that we have the most "raw" version of the predictions/results.
+
 ```{r}
 library(neuralnet) # We need this library to run a ANN model
 
@@ -289,6 +307,8 @@ ANN_bin_pred <- ifelse(ANN_pred >= ANN_pred_cutoff, 1, 0)
 ```
 
 ## Step 5.5: Combine, Split, Build, & Predict (Stacked Model)
+We will now take the prediction results of the various models and create a new data set to build the stacked model off of. Similar to the normal work flow, we will split the data, then use it to the build the 2nd level decision tree model. Finally, we will use the decision tree model produced to predict the test data set. We will also used a cost matrix to optimize the model. 
+
 ```{r}
 # Combine the predictions of the 6 individual models into a new data frame
 stacked_data <- data.frame(
@@ -339,6 +359,8 @@ stacked_pred <- predict(stacked_model, stacked_test)
 ```
 
 ## Step 6: Evaluate Model
+Now that the models are created, we can evaluate them by creating confusion matrices. It will be important to look at the accuracy and sensitivity of the model. We also want to make sure that we am minimizing false negatives, as those are much more costly that false positives. [explain what false negatives and false positives are and why false negatives are worse]
+
 ```{r class.source = 'fold-hide', message=FALSE}
 # Let's build some confusion matrices
 
@@ -397,9 +419,96 @@ cm_unweight_stacked
 cm_stacked <- confusionMatrix(as.factor(stacked_pred), as.factor(stacked_test$actual), positive = "1")
 cm_stacked
 ```
+### Model Comparison
+```{r class.source = 'fold-hide'}
+Model_Comparison <- data.frame(
+  "Model" = c("Logistic Regression", "Decision Tree (weights)", "SVM", "Random Forest", "KNN", "ANN", "Stacked Model"),
+  "Accuracy" = c(round(cm_lr$overall["Accuracy"], 4), round(cm_dt$overall["Accuracy"], 4), round(cm_SVM$overall["Accuracy"], 4), round(cm_rf$overall["Accuracy"], 4), round(cm_KNN$overall["Accuracy"], 4), round(cm_ANN$overall["Accuracy"], 4), round(cm_stacked$overall["Accuracy"], 4)),
+  "Sensitivity" = c(round(cm_lr$byClass["Sensitivity"], 4), round(cm_dt$byClass["Sensitivity"], 4), round(cm_SVM$byClass["Sensitivity"], 4), round(cm_rf$byClass["Sensitivity"], 4), round(cm_KNN$byClass["Sensitivity"], 4), round(cm_ANN$byClass["Sensitivity"], 4), round(cm_stacked$byClass["Sensitivity"], 4)),
+  "Kappa" = c(round(cm_lr$overall["Kappa"], 4), round(cm_dt$overall["Kappa"], 4), round(cm_SVM$overall["Kappa"], 4), round(cm_rf$overall["Kappa"], 4), round(cm_KNN$overall["Kappa"], 4), round(cm_ANN$overall["Kappa"], 4), round(cm_stacked$overall["Kappa"], 4)),
+  "P-Value" = c(round(cm_lr$overall["AccuracyPValue"], 4), round(cm_dt$overall["AccuracyPValue"], 4), round(cm_SVM$overall["AccuracyPValue"], 4), round(cm_rf$overall["AccuracyPValue"], 4), round(cm_KNN$overall["AccuracyPValue"], 4), round(cm_ANN$overall["AccuracyPValue"], 4), round(cm_stacked$overall["AccuracyPValue"], 4))
+)
+
+kable(Model_Comparison, format = "markdown")
+```
+
+* The **Random Forest** model has the highest accuracy
+* The **Decision Tree** model has the highest sensitivity
+* The **Stacked** model has the highest kappa
+* The **Random Forest, ANN, and Stacked** models has the smallest p-value
+
+**Stacked Model** <br>
+Comparing the stacked model to the individual models,...
 
 ## Step 7: Implement Model
+Now that the models are created and evaluated, it is time to implement the models and see the financial impacts. It is important to also calculate the financial impact of having no model. I make assumptions (below) for the financial data I am missing. 
 
+
+### Assumptions
+
+```{r class.source = 'fold-hide'}
+# Assumptions
+
+```
+
+
+#### No Model
+```{r class.source = 'fold-hide'}
+
+```
+With no model, ...
+
+#### Logistic Regression Model
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+#### Decision Tree Model
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+#### SVM Model
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+#### Random Forest
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+#### KNN Model
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+#### ANN Model
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+#### Stacked Model
+```{r class.source = 'fold-hide'}
+
+```
+With a model, ...
+
+
+### Results
+```{r}
+
+# kable(results, format = "markdown", digits = 4)
+```
+
+
+### Conclusion 
 
 
 # OLD CODE

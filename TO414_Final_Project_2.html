@@ -1578,6 +1578,9 @@ Sharma)</h4>
 
 <div id="prediciting-whether-job-postings-are-fradulent" class="section level1">
 <h1>Prediciting Whether Job Postings are Fradulent</h1>
+<div id="executive-summary" class="section level2">
+<h2>Executive Summary</h2>
+</div>
 <div id="step-0-whats-the-point" class="section level2">
 <h2>Step 0: What’s the point?</h2>
 <div id="situation" class="section level3">
@@ -1598,12 +1601,25 @@ Sharma)</h4>
 </div>
 <div id="step-1-load-data" class="section level2">
 <h2>Step 1: Load Data</h2>
+<p>We need to load the data into an object (<code>job</code>) so that we
+can interact with it. We don’t want to set <code>stringsAsFactors</code>
+to true, since there are some string data that should not be converted
+to factors that we will need to deal with while cleaning the data.</p>
 <pre class="r"><code># Let&#39;s store the data in the job object so we can interact with it
-job &lt;- read.csv(&quot;fake_job_postings.csv&quot;) 
-# We don&#39;t want to set stringsAsFactors to true, since there are some string data that should not be converted to factors that we will need to deal with while cleaning the data.</code></pre>
+job &lt;- read.csv(&quot;fake_job_postings.csv&quot;) </code></pre>
 </div>
 <div id="step-2-clean-data" class="section level2">
 <h2>Step 2: Clean Data</h2>
+<p>We need get a sense of the data, before we can start cleaning it. It
+is important to remove any columns that are unnecessary or would be data
+we should not use in our prediction models (e.g., data that would not be
+available to make predictions). It is also a good time to deal with NA
+data (if there are any). Also, for KNN and ANN model, it is important to
+dummify and scale the data. So, we will use <code>job</code> for the
+logistic regression, SVM, random forest, and decision tree models and
+<code>job_scaled</code> for the KNN and ANN models. After cleaning the
+data, it is good to double check the data to ensure the desired results
+are achieved.</p>
 <div id="explore-data" class="section level3">
 <h3>Explore Data</h3>
 <pre class="r"><code>str(job) # Let&#39;s get a sense of columns and data types</code></pre>
@@ -1665,6 +1681,11 @@ job &lt;- read.csv(&quot;fake_job_postings.csv&quot;)
 </div>
 <div id="modify-data-change-and-delete" class="section level3">
 <h3>Modify Data (Change and Delete)</h3>
+<p>We want to remove columns that are irrelevant or that we will not
+have access to when using this model to predict the fraudulent outcome
+status. We also want to be careful about how we modify data as changing
+data into factors or other simplifications can result in information
+being lost (which will hurt the robustness of our models).</p>
 <pre class="r"><code>job$job_id &lt;- NULL # This is not necessary, so let&#39;s delete it
 job$title &lt;- nchar(job$title) # Since we are doing a rough model, instead of parsing the string, let&#39;s just get the length
 job$location &lt;- as.factor(job$location)
@@ -2108,6 +2129,16 @@ str(job_scaled)</code></pre>
 </div>
 <div id="step-3-split-data" class="section level2">
 <h2>Step 3: Split Data</h2>
+<p>After cleaning the data, we can split the data. We will do
+<strong>70-30 split</strong>. It is important that we split the data so
+that we can use a portion of the data to train the models and the
+remaining portion of the data to then test of efficacy of the models
+created. While we typically do a 50-50 split for the first split when
+making stacked/two level models, we are doing a 70-30 split in this case
+because we have almost 18,000 rows of data. There will be enough data to
+effectively train and test the decision tree model that will combine the
+six models being created at this point, even if a 70-30 split is
+used.</p>
 <pre class="r"><code># Let&#39;s do a 70-30 split.
 
 trainprop &lt;- 0.7 # This is the proportion of data we want in our training data set
@@ -2139,8 +2170,20 @@ summary(job_train$fraudulent)</code></pre>
 </div>
 <div id="step-4-5-build-a-model-predict" class="section level2">
 <h2>Step 4 &amp; 5: Build a Model + Predict</h2>
+<p>Now that the data has been split, it is time to create the various
+models. We will be loading in any necessary libraries, then creating the
+models based on the training data (<code>job_train</code> and
+<code>job_scaled_train</code>). Once the models are trained on the data
+and then evaluated, we can then use them in the future to predict
+whether job postings are fraudulent. We will also improve/optimize these
+models, using different levers based on the model.</p>
 <div id="logistic-regression-model" class="section level3">
 <h3>Logistic Regression Model</h3>
+<p>For the logistic regression model, we can improve the model by adding
+combinations of predictors and changing the <code>lr_pred_cutoff</code>
+value. We want to extract the log probabilities (<code>lr_pred</code>)
+for the stacked model, so that we have the most “raw” version of the
+predictions/results.</p>
 <pre class="r"><code># Build Model
 
 # Since we are trying to predict fraudulent, will have that be our response variable. Since we are using all other columns to predict fraudulent, those will be our predictor variables. 
@@ -2158,6 +2201,12 @@ lr_bin_pred &lt;- ifelse(lr_pred &gt;= lr_pred_cutoff, 1, 0)</code></pre>
 </div>
 <div id="decision-tree-model" class="section level3">
 <h3>Decision Tree Model</h3>
+<p>For the decision tree model, we can improve the model by utilizing a
+<code>cost_matrix</code> to change the weighting/ratio between false
+positive and false negative that the model is trying to
+balance/optimize. We will also create a decision tree model to use for
+the stacked model, as we want the results (<code>dt_pred</code>) without
+having placed our thumb on the scale.</p>
 <pre class="r"><code>library(C50) # We need this library to run a decision tree model
 
 # Build Model (without weights)
@@ -2208,6 +2257,12 @@ dt_weights_pred &lt;- predict(dt_cost_model, job_test)</code></pre>
 </div>
 <div id="svm-model" class="section level3">
 <h3>SVM Model</h3>
+<p>For the SVM model, I can improve the model by changing the kernel. To
+find the optimal kernel, it will involve a guess-and-check method. I can
+also improve the model by changing the <code>SVM_pred_cutoff</code>
+value. We want to extract the probabilities (<code>SVM_pred</code>) for
+the stacked model, so that we have the most “raw” version of the
+predictions/results.</p>
 <pre class="r"><code>library(kernlab) # We need this library to run a SVM model
 
 # Build Model
@@ -2225,6 +2280,8 @@ SVM_bin_prob &lt;- ifelse(SVM_pred &gt;= SVM_pred_cutoff, 1, 0)</code></pre>
 </div>
 <div id="random-forest" class="section level3">
 <h3>Random Forest</h3>
+<p>For the random forest model, we can improve the model by modifying
+the <code>ntree</code> and <code>nodesize</code> values.</p>
 <pre class="r"><code>library(randomForest) # We need this library to run a random forest model</code></pre>
 <pre><code>## randomForest 4.7-1.2</code></pre>
 <pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
@@ -2242,6 +2299,11 @@ rf_pred &lt;- predict(rf_model, job_test)</code></pre>
 </div>
 <div id="knn-model" class="section level3">
 <h3>KNN Model</h3>
+<p>For the KNN model, we can improve the model by modifying the
+<code>k</code> value and changing the <code>KNN_pred_cutoff</code>
+value. We want to extract the probabilities (<code>KNN_prob</code>) for
+the stacked model, so that we have the most “raw” version of the
+predictions/results.</p>
 <pre class="r"><code>library(class) # We need this library to run a KNN model
 
 # Build Model + Predict
@@ -2258,6 +2320,11 @@ KNN_bin_prob &lt;- ifelse(KNN_prob &gt;= KNN_pred_cutoff, 1, 0)</code></pre>
 </div>
 <div id="ann-model" class="section level3">
 <h3>ANN Model</h3>
+<p>For the ANN model, we can improve the model by changing the number of
+nodes (e.g., <code>hidden = c(5, 3, 2)</code>) and changing the
+<code>ANN_pred_cutoff</code> value. We want to extract the fractional
+values (<code>ANN_pred</code>) for the stacked model, so that we have
+the most “raw” version of the predictions/results.</p>
 <pre class="r"><code>library(neuralnet) # We need this library to run a ANN model
 
 # Build Model
@@ -2279,6 +2346,12 @@ ANN_bin_pred &lt;- ifelse(ANN_pred &gt;= ANN_pred_cutoff, 1, 0)</code></pre>
 </div>
 <div id="step-5.5-combine-split-build-predict-stacked-model" class="section level2">
 <h2>Step 5.5: Combine, Split, Build, &amp; Predict (Stacked Model)</h2>
+<p>We will now take the prediction results of the various models and
+create a new data set to build the stacked model off of. Similar to the
+normal work flow, we will split the data, then use it to the build the
+2nd level decision tree model. Finally, we will use the decision tree
+model produced to predict the test data set. We will also used a cost
+matrix to optimize the model.</p>
 <pre class="r"><code># Combine the predictions of the 6 individual models into a new data frame
 stacked_data &lt;- data.frame(
       lr_pred = c(lr_pred),
@@ -2336,6 +2409,12 @@ stacked_pred &lt;- predict(stacked_model, stacked_test)</code></pre>
 </div>
 <div id="step-6-evaluate-model" class="section level2">
 <h2>Step 6: Evaluate Model</h2>
+<p>Now that the models are created, we can evaluate them by creating
+confusion matrices. It will be important to look at the accuracy and
+sensitivity of the model. We also want to make sure that we am
+minimizing false negatives, as those are much more costly that false
+positives. [explain what false negatives and false positives are and why
+false negatives are worse]</p>
 <pre class="r fold-hide"><code># Let&#39;s build some confusion matrices
 
 library(caret) # We need this library to build a confusion matrix
@@ -2626,9 +2705,141 @@ cm_stacked</code></pre>
 ##        &#39;Positive&#39; Class : 1               
 ## </code></pre>
 </div>
+<div id="model-comparison" class="section level3">
+<h3>Model Comparison</h3>
+<pre class="r fold-hide"><code>Model_Comparison &lt;- data.frame(
+  &quot;Model&quot; = c(&quot;Logistic Regression&quot;, &quot;Decision Tree (weights)&quot;, &quot;SVM&quot;, &quot;Random Forest&quot;, &quot;KNN&quot;, &quot;ANN&quot;, &quot;Stacked Model&quot;),
+  &quot;Accuracy&quot; = c(round(cm_lr$overall[&quot;Accuracy&quot;], 4), round(cm_dt$overall[&quot;Accuracy&quot;], 4), round(cm_SVM$overall[&quot;Accuracy&quot;], 4), round(cm_rf$overall[&quot;Accuracy&quot;], 4), round(cm_KNN$overall[&quot;Accuracy&quot;], 4), round(cm_ANN$overall[&quot;Accuracy&quot;], 4), round(cm_stacked$overall[&quot;Accuracy&quot;], 4)),
+  &quot;Sensitivity&quot; = c(round(cm_lr$byClass[&quot;Sensitivity&quot;], 4), round(cm_dt$byClass[&quot;Sensitivity&quot;], 4), round(cm_SVM$byClass[&quot;Sensitivity&quot;], 4), round(cm_rf$byClass[&quot;Sensitivity&quot;], 4), round(cm_KNN$byClass[&quot;Sensitivity&quot;], 4), round(cm_ANN$byClass[&quot;Sensitivity&quot;], 4), round(cm_stacked$byClass[&quot;Sensitivity&quot;], 4)),
+  &quot;Kappa&quot; = c(round(cm_lr$overall[&quot;Kappa&quot;], 4), round(cm_dt$overall[&quot;Kappa&quot;], 4), round(cm_SVM$overall[&quot;Kappa&quot;], 4), round(cm_rf$overall[&quot;Kappa&quot;], 4), round(cm_KNN$overall[&quot;Kappa&quot;], 4), round(cm_ANN$overall[&quot;Kappa&quot;], 4), round(cm_stacked$overall[&quot;Kappa&quot;], 4)),
+  &quot;P-Value&quot; = c(round(cm_lr$overall[&quot;AccuracyPValue&quot;], 4), round(cm_dt$overall[&quot;AccuracyPValue&quot;], 4), round(cm_SVM$overall[&quot;AccuracyPValue&quot;], 4), round(cm_rf$overall[&quot;AccuracyPValue&quot;], 4), round(cm_KNN$overall[&quot;AccuracyPValue&quot;], 4), round(cm_ANN$overall[&quot;AccuracyPValue&quot;], 4), round(cm_stacked$overall[&quot;AccuracyPValue&quot;], 4))
+)
+
+kable(Model_Comparison, format = &quot;markdown&quot;)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Model</th>
+<th align="right">Accuracy</th>
+<th align="right">Sensitivity</th>
+<th align="right">Kappa</th>
+<th align="right">P.Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Logistic Regression</td>
+<td align="right">0.9512</td>
+<td align="right">0.1268</td>
+<td align="right">0.1969</td>
+<td align="right">0.2028</td>
+</tr>
+<tr class="even">
+<td align="left">Decision Tree (weights)</td>
+<td align="right">0.9459</td>
+<td align="right">0.7355</td>
+<td align="right">0.5557</td>
+<td align="right">0.8154</td>
+</tr>
+<tr class="odd">
+<td align="left">SVM</td>
+<td align="right">0.9487</td>
+<td align="right">0.0181</td>
+<td align="right">0.0319</td>
+<td align="right">0.4914</td>
+</tr>
+<tr class="even">
+<td align="left">Random Forest</td>
+<td align="right">0.9726</td>
+<td align="right">0.5181</td>
+<td align="right">0.6473</td>
+<td align="right">0.0000</td>
+</tr>
+<tr class="odd">
+<td align="left">KNN</td>
+<td align="right">0.9595</td>
+<td align="right">0.3370</td>
+<td align="right">0.4435</td>
+<td align="right">0.0001</td>
+</tr>
+<tr class="even">
+<td align="left">ANN</td>
+<td align="right">0.9601</td>
+<td align="right">0.3768</td>
+<td align="right">0.4742</td>
+<td align="right">0.0000</td>
+</tr>
+<tr class="odd">
+<td align="left">Stacked Model</td>
+<td align="right">0.9713</td>
+<td align="right">0.6791</td>
+<td align="right">0.6876</td>
+<td align="right">0.0000</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>The <strong>Random Forest</strong> model has the highest
+accuracy</li>
+<li>The <strong>Decision Tree</strong> model has the highest
+sensitivity</li>
+<li>The <strong>Stacked</strong> model has the highest kappa</li>
+<li>The <strong>Random Forest, ANN, and Stacked</strong> models has the
+smallest p-value</li>
+</ul>
+<p><strong>Stacked Model</strong> <br> Comparing the stacked model to
+the individual models,…</p>
+</div>
 </div>
 <div id="step-7-implement-model" class="section level2">
 <h2>Step 7: Implement Model</h2>
+<p>Now that the models are created and evaluated, it is time to
+implement the models and see the financial impacts. It is important to
+also calculate the financial impact of having no model. I make
+assumptions (below) for the financial data I am missing.</p>
+<div id="assumptions" class="section level3">
+<h3>Assumptions</h3>
+<pre class="r fold-hide"><code># Assumptions</code></pre>
+<div id="no-model" class="section level4">
+<h4>No Model</h4>
+<p>With no model, …</p>
+</div>
+<div id="logistic-regression-model-2" class="section level4">
+<h4>Logistic Regression Model</h4>
+<p>With a model, …</p>
+</div>
+<div id="decision-tree-model-2" class="section level4">
+<h4>Decision Tree Model</h4>
+<p>With a model, …</p>
+</div>
+<div id="svm-model-2" class="section level4">
+<h4>SVM Model</h4>
+<p>With a model, …</p>
+</div>
+<div id="random-forest-2" class="section level4">
+<h4>Random Forest</h4>
+<p>With a model, …</p>
+</div>
+<div id="knn-model-2" class="section level4">
+<h4>KNN Model</h4>
+<p>With a model, …</p>
+</div>
+<div id="ann-model-2" class="section level4">
+<h4>ANN Model</h4>
+<p>With a model, …</p>
+</div>
+<div id="stacked-model-1" class="section level4">
+<h4>Stacked Model</h4>
+<p>With a model, …</p>
+</div>
+</div>
+<div id="results" class="section level3">
+<h3>Results</h3>
+<pre class="r"><code># kable(results, format = &quot;markdown&quot;, digits = 4)</code></pre>
+</div>
+<div id="conclusion" class="section level3">
+<h3>Conclusion</h3>
+</div>
 </div>
 </div>
 <div id="old-code" class="section level1">
