@@ -446,6 +446,16 @@ Now that the models are created and evaluated, it is time to implement the model
 
 ### Assumptions
 
+* There are no costs associated with true negatives and true positives
+* For false positives, these are job postings that our model flags as fraudulent that are actually real. As a result, the company would then have then had to submit a request to get their posting unflagged and placed back on the sight. This would cost a total of $35.
+  * This would cost $20 in processing the unflagging request
+  * This would "cost" $15 in reputation hurt to job posting site as companies do not want to have to post on sites that they have to worry about falsely getting flagged as fraudulent on. 
+* For false negatives, these are job postings that our model does not flag as fraudulent but actually are. As a result, the site users who apply to this posting risk their time being wasted or even worse, their information being stolen. This would cost a total of $500. 
+  * This would cost $100 in conducting a formal investigation to remove this post (after the fact) and then investigate any other fraudulent posts related to this on. 
+  * This would "cost" $400 in harm to the many hundreds of applicants who applied. If there were 500 applications, it would be about $0.80 per applicant. 
+
+
+
 ```{r class.source = 'fold-hide'}
 # Assumptions
 
