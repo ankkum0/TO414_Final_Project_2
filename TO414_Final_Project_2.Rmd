@@ -21,14 +21,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Step 0: What's the point?
 
 ### Situation:
-
+The rise of ghost and fraudulent job postings has become a major problem for job platforms, with recent industry reports estimating that up to **20–30%** of online job ads show signs of suspicious or deceptive activity. These posts create harmful experiences for users: wasting applicants’ time, exposing them to phishing attempts, and eroding trust in the platform. They also hurt employers, who depend on credible marketplaces to attract qualified candidates. For job-posting websites like LinkedIn or Indeed, the challenge is scale: **millions of posts go live every month**, making **manual review impossible**. Predictive analytics offers a way to proactively identify high-risk postings by learning patterns that distinguish legitimate jobs from fraudulent or “ghost” listings (those that are never actually reviewed or filled). 
 ### Data Issues:
+
 
 ### Goal:
 
+
 ### Models:
+We will be creating a **logistic regression, decision tree, SVM, random forest, KNN, and ANN model**. We will also be created a **stacked model** that combines this individual models. This will be accomplished using a decision tree model (as the second level model put on top of these other individual models). We want to use a decision tree model as it will combine these models without aggregating. When we aggregate models, we will get a model that in an average of the models (it will not be better than the best model). With the decision tree, the goal is to take the best of each model to produce a superior model that outperforms the individual models.
 
 ### Outcome:
+By building and comparing models such as logistic regression, decision tree, SVM, random forest, KNN, ANN, and stacked models, we can evaluate which approach most effectively reduces false negatives, because missing a fraudulent post is far more damaging than mistakenly flagging a real one. **Ultimately, the goal of this project is to design a model that improves platform safety, protects job seekers, and strengthens the integrity of online hiring ecosystems.**
 
 ## Step 1: Load Data
 We need to load the data into an object (`job`) so that we can interact with it. We don't want to set `stringsAsFactors` to true, since there are some string data that should not be converted to factors that we will need to deal with while cleaning the data.
@@ -79,7 +83,8 @@ table(job$salary_known)
 
 ```
 
-## Department Cleaning
+### Department Cleaning
+
 ```{r}
 # 1️⃣ Convert to character, trim, lowercase
 job$department_clean <- tolower(trimws(as.character(job$department)))
@@ -231,6 +236,7 @@ job$industry_clean <- factor(job$industry_clean)
 table(job$industry_clean)
 
 ```
+### Function Cleaning
 
 ```{r}
 # Convert to character and trim whitespace
@@ -275,10 +281,9 @@ table(job$function_clean)
 
 
 
+### Location Cleaning
 
-### Check Data
 ```{r}
-
 # The following columns have too many factor levels (will have to clean up for real model). For this rough model, let's just remove them for now. If a column has too many factor levels it will take the logistic regression model an extremely long time to run. Any column with more than 40 factor levels was removed. 
 
 # Grab the country 
@@ -297,7 +302,11 @@ job$loc_country_new <- ifelse(job$loc_country_val > 10, as.character(job$loc_cou
 # Convert to factor first
 job$loc_country_new[is.na(job$loc_country_new) | job$loc_country_new == ""] <- "NA"
 job$loc_country_new <- factor(job$loc_country_new)
+```
 
+### Check Data
+
+```{r}
 # We need to remove these columns since we have cleaned them and replaced them with a cleaned version
 job$loc_country_val <- NULL
 job$loc_country <- NULL
