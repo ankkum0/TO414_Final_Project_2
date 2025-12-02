@@ -422,7 +422,7 @@ dt_model <- C5.0(as.factor(fraudulent) ~ title
                  #+ required_education #<- causes problem
                  + salary_known
                  + department_clean
-                 #+ industry_clean <- causes problem
+                 #+ industry_clean #<- causes problem
                  + function_clean
                  + loc_country_new
                  , data = job_train)
@@ -726,67 +726,115 @@ Now that the models are created and evaluated, it is time to implement the model
   * This would cost $100 in conducting a formal investigation to remove this post (after the fact) and then investigate any other fraudulent posts related to this on. 
   * This would "cost" $400 in harm to the many hundreds of applicants who applied. If there were 500 applications, it would be about $0.80 per applicant. 
 
+*Note: Results will be scaled up to 100,000 posts so (they are comparable)*
 
 
 ```{r class.source = 'fold-hide'}
 # Assumptions
-
+fp_cost <- 35
+fn_cost <- 500
+num_posts = 100000
+nm_scalar = num_posts/nrow(job)
+m_scalar = num_posts/nrow(job_test)
+sm_scalar = num_posts/nrow(stacked_test)
 ```
 
 
 #### No Model
 ```{r class.source = 'fold-hide'}
-
+nm_frad = sum(job$fraudulent) * nm_scalar
+nm_total_cost = nm_frad * fn_cost
 ```
-With no model, ...
+With no model, there would be no way of flagging fraudulent posts ahead of time. As a result, we end up treating all posts as non-fraudulent. Therefore, we miss **`r format(round(nm_frad, 0), big.mark = ",")` (all) fraudulent posts**, costing **$`r format(round(nm_total_cost, 2), big.mark = ",")`**.
 
 #### Logistic Regression Model
 ```{r class.source = 'fold-hide'}
-
+lr_fp_cost = fp_cost * cm_lr$table["1", "0"] * m_scalar
+lr_fn_cost = fn_cost * cm_lr$table["0", "1"] * m_scalar
+lr_total_cost = lr_fp_cost + lr_fn_cost
 ```
-With a model, ...
+With a model, we ended up with **`r format(round(cm_lr$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(lr_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_lr$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(lr_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(lr_total_cost, 2), big.mark = ",")`**.
 
 #### Decision Tree Model
 ```{r class.source = 'fold-hide'}
-
+dt_fp_cost = fp_cost * cm_dt$table["1", "0"] * m_scalar
+dt_fn_cost = fn_cost * cm_dt$table["0", "1"] * m_scalar
+dt_total_cost = dt_fp_cost + dt_fn_cost
 ```
-With a model, ...
+With a model, we ended up with **`r format(round(cm_dt$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(dt_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_dt$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(dt_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(dt_total_cost, 2), big.mark = ",")`**.
 
 #### SVM Model
 ```{r class.source = 'fold-hide'}
-
+SVM_fp_cost = fp_cost * cm_SVM$table["1", "0"] * m_scalar
+SVM_fn_cost = fn_cost * cm_SVM$table["0", "1"] * m_scalar
+SVM_total_cost = SVM_fp_cost + SVM_fn_cost
 ```
-With a model, ...
+With a model, we ended up with **`r format(round(cm_SVM$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(SVM_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_SVM$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(SVM_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(SVM_total_cost, 2), big.mark = ",")`**.
 
 #### Random Forest
 ```{r class.source = 'fold-hide'}
-
+rf_fp_cost = fp_cost * cm_rf$table["1", "0"] * m_scalar
+rf_fn_cost = fn_cost * cm_rf$table["0", "1"] * m_scalar
+rf_total_cost = rf_fp_cost + rf_fn_cost
 ```
-With a model, ...
+With a model, we ended up with **`r format(round(cm_rf$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(rf_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_rf$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(rf_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(rf_total_cost, 2), big.mark = ",")`**.
 
 #### KNN Model
 ```{r class.source = 'fold-hide'}
-
+KNN_fp_cost = fp_cost * cm_KNN$table["1", "0"] * m_scalar
+KNN_fn_cost = fn_cost * cm_KNN$table["0", "1"] * m_scalar
+KNN_total_cost = KNN_fp_cost + KNN_fn_cost
 ```
-With a model, ...
+With a model, we ended up with **`r format(round(cm_KNN$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(KNN_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_KNN$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(KNN_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(KNN_total_cost, 2), big.mark = ",")`**.
 
 #### ANN Model
 ```{r class.source = 'fold-hide'}
-
+ANN_fp_cost = fp_cost * cm_ANN$table["1", "0"] * m_scalar
+ANN_fn_cost = fn_cost * cm_ANN$table["0", "1"] * m_scalar
+ANN_total_cost = ANN_fp_cost + ANN_fn_cost
 ```
-With a model, ...
+With a model, we ended up with **`r format(round(cm_ANN$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(ANN_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_ANN$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(ANN_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(ANN_total_cost, 2), big.mark = ",")`**.
 
 #### Stacked Model
 ```{r class.source = 'fold-hide'}
-
+stacked_fp_cost = fp_cost * cm_stacked$table["1", "0"] * sm_scalar
+stacked_fn_cost = fn_cost * cm_stacked$table["0", "1"] * sm_scalar
+stacked_total_cost = stacked_fp_cost + stacked_fn_cost
 ```
-With a model, ...
-
+With a model, we ended up with **`r format(round(cm_stacked$table["1", "0"] * sm_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(stacked_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_stacked$table["0", "1"] * sm_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(stacked_fn_cost, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **$`r format(round(stacked_total_cost, 2), big.mark = ",")`**.
 
 ### Results
 ```{r}
+results <- data.frame(
+  "Model" = c("No Model", "Logistic Regression", "Decision Tree", "SVM", "Random Forest", "KNN", "ANN", "Stacked Model"),
+  "Accuracy" = c(0, round(cm_lr$overall["Accuracy"], 4), round(cm_dt$overall["Accuracy"], 4), round(cm_SVM$overall["Accuracy"], 4), round(cm_rf$overall["Accuracy"], 4), round(cm_KNN$overall["Accuracy"], 4), round(cm_ANN$overall["Accuracy"], 4), round(cm_stacked$overall["Accuracy"], 4)),
+  "Sensitivity" = c(0, round(cm_lr$byClass["Sensitivity"], 4), round(cm_dt$byClass["Sensitivity"], 4), round(cm_SVM$byClass["Sensitivity"], 4), round(cm_rf$byClass["Sensitivity"], 4), round(cm_KNN$byClass["Sensitivity"], 4), round(cm_ANN$byClass["Sensitivity"], 4), round(cm_stacked$byClass["Sensitivity"], 4))
+)
+results$FP_Cost <- c(0, lr_fp_cost, dt_fp_cost, SVM_fp_cost, rf_fp_cost, KNN_fp_cost, ANN_fp_cost, stacked_fp_cost)
+results$FN_Cost <- c(nm_total_cost, lr_fn_cost, dt_fn_cost, SVM_fn_cost, rf_fn_cost, KNN_fn_cost, ANN_fn_cost, stacked_fn_cost)
+results$Total_Cost <- c(nm_total_cost, lr_total_cost, dt_total_cost, SVM_total_cost, rf_total_cost, KNN_total_cost, ANN_total_cost, stacked_total_cost)
+results$Cost_Savings <- (nm_total_cost - results$Total_Cost)
 
-# kable(results, format = "markdown", digits = 4)
+results$FP_Cost <- format(round(results$FP_Cost, 2), big.mark = ",")
+results$FN_Cost <- format(round(results$FN_Cost, 2), big.mark = ",")
+results$Total_Cost <- format(round(results$Total_Cost, 2), big.mark = ",")
+results$Cost_Savings <- format(round(results$Cost_Savings, 2), big.mark = ",")
+
+kable(results, format = "markdown", digits = 4)
 ```
 
 

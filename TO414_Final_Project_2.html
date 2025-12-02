@@ -2836,7 +2836,7 @@ dt_model &lt;- C5.0(as.factor(fraudulent) ~ title
                  #+ required_education #&lt;- causes problem
                  + salary_known
                  + department_clean
-                 #+ industry_clean &lt;- causes problem
+                 #+ industry_clean #&lt;- causes problem
                  + function_clean
                  + loc_country_new
                  , data = job_train)
@@ -3477,43 +3477,216 @@ who applied. If there were 500 applications, it would be about $0.80 per
 applicant.</li>
 </ul></li>
 </ul>
-<pre class="r fold-hide"><code># Assumptions</code></pre>
+<p><em>Note: Results will be scaled up to 100,000 posts so (they are
+comparable)</em></p>
+<pre class="r fold-hide"><code># Assumptions
+fp_cost &lt;- 35
+fn_cost &lt;- 500
+num_posts = 100000
+nm_scalar = num_posts/nrow(job)
+m_scalar = num_posts/nrow(job_test)
+sm_scalar = num_posts/nrow(stacked_test)</code></pre>
 <div id="no-model" class="section level4">
 <h4>No Model</h4>
-<p>With no model, …</p>
+<pre class="r fold-hide"><code>nm_frad = sum(job$fraudulent) * nm_scalar
+nm_total_cost = nm_frad * fn_cost</code></pre>
+<p>With no model, there would be no way of flagging fraudulent posts
+ahead of time. As a result, we end up treating all posts as
+non-fraudulent. Therefore, we miss <strong>4,843 (all) fraudulent
+posts</strong>, costing <strong>$2,421,700</strong>.</p>
 </div>
 <div id="logistic-regression-model-2" class="section level4">
 <h4>Logistic Regression Model</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>lr_fp_cost = fp_cost * cm_lr$table[&quot;1&quot;, &quot;0&quot;] * m_scalar
+lr_fn_cost = fn_cost * cm_lr$table[&quot;0&quot;, &quot;1&quot;] * m_scalar
+lr_total_cost = lr_fp_cost + lr_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>876 false positives</strong>,
+costing <strong>$30,667.41</strong>. We ended up with <strong>3,747
+false negatives</strong>, costing <strong>$1,873,602</strong>. So, the
+total cost the job posting site company incurs is
+<strong>$1,904,269</strong>.</p>
 </div>
 <div id="decision-tree-model-2" class="section level4">
 <h4>Decision Tree Model</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>dt_fp_cost = fp_cost * cm_dt$table[&quot;1&quot;, &quot;0&quot;] * m_scalar
+dt_fn_cost = fn_cost * cm_dt$table[&quot;0&quot;, &quot;1&quot;] * m_scalar
+dt_total_cost = dt_fp_cost + dt_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>4,045 false
+positives</strong>, costing <strong>$141,592.1</strong>. We ended up
+with <strong>1,361 false negatives</strong>, costing
+<strong>$680,462.3</strong>. So, the total cost the job posting site
+company incurs is <strong>$822,054.4</strong>.</p>
 </div>
 <div id="svm-model-2" class="section level4">
 <h4>SVM Model</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>SVM_fp_cost = fp_cost * cm_SVM$table[&quot;1&quot;, &quot;0&quot;] * m_scalar
+SVM_fn_cost = fn_cost * cm_SVM$table[&quot;0&quot;, &quot;1&quot;] * m_scalar
+SVM_total_cost = SVM_fp_cost + SVM_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>75 false positives</strong>,
+costing <strong>$2,609.99</strong>. We ended up with <strong>4,940 false
+negatives</strong>, costing <strong>$2,470,172</strong>. So, the total
+cost the job posting site company incurs is
+<strong>$2,472,782</strong>.</p>
 </div>
 <div id="random-forest-2" class="section level4">
 <h4>Random Forest</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>rf_fp_cost = fp_cost * cm_rf$table[&quot;1&quot;, &quot;0&quot;] * m_scalar
+rf_fn_cost = fn_cost * cm_rf$table[&quot;0&quot;, &quot;1&quot;] * m_scalar
+rf_total_cost = rf_fp_cost + rf_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>317 false positives</strong>,
+costing <strong>$11,092.47</strong>. We ended up with <strong>1,939
+false negatives</strong>, costing <strong>$969,425.8</strong>. So, the
+total cost the job posting site company incurs is
+<strong>$980,518.3</strong>.</p>
 </div>
 <div id="knn-model-2" class="section level4">
 <h4>KNN Model</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>KNN_fp_cost = fp_cost * cm_KNN$table[&quot;1&quot;, &quot;0&quot;] * m_scalar
+KNN_fn_cost = fn_cost * cm_KNN$table[&quot;0&quot;, &quot;1&quot;] * m_scalar
+KNN_total_cost = KNN_fp_cost + KNN_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>3,207 false
+positives</strong>, costing <strong>$112,229.7</strong>. We ended up
+with <strong>1,603 false negatives</strong>, costing
+<strong>$801,640.6</strong>. So, the total cost the job posting site
+company incurs is <strong>$913,870.2</strong>.</p>
 </div>
 <div id="ann-model-2" class="section level4">
 <h4>ANN Model</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>ANN_fp_cost = fp_cost * cm_ANN$table[&quot;1&quot;, &quot;0&quot;] * m_scalar
+ANN_fn_cost = fn_cost * cm_ANN$table[&quot;0&quot;, &quot;1&quot;] * m_scalar
+ANN_total_cost = ANN_fp_cost + ANN_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>2,349 false
+positives</strong>, costing <strong>$82,214.77</strong>. We ended up
+with <strong>1,864 false negatives</strong>, costing
+<strong>$932,140.2</strong>. So, the total cost the job posting site
+company incurs is <strong>$1,014,355</strong>.</p>
 </div>
 <div id="stacked-model-1" class="section level4">
 <h4>Stacked Model</h4>
-<p>With a model, …</p>
+<pre class="r fold-hide"><code>stacked_fp_cost = fp_cost * cm_stacked$table[&quot;1&quot;, &quot;0&quot;] * sm_scalar
+stacked_fn_cost = fn_cost * cm_stacked$table[&quot;0&quot;, &quot;1&quot;] * sm_scalar
+stacked_total_cost = stacked_fp_cost + stacked_fn_cost</code></pre>
+<p>With a model, we ended up with <strong>2,051 false
+positives</strong>, costing <strong>$71,774.79</strong>. We ended up
+with <strong>1,305 false negatives</strong>, costing
+<strong>$652,498.1</strong>. So, the total cost the job posting site
+company incurs is <strong>$724,272.9</strong>.</p>
 </div>
 </div>
 <div id="results" class="section level3">
 <h3>Results</h3>
-<pre class="r"><code># kable(results, format = &quot;markdown&quot;, digits = 4)</code></pre>
+<pre class="r"><code>results &lt;- data.frame(
+  &quot;Model&quot; = c(&quot;No Model&quot;, &quot;Logistic Regression&quot;, &quot;Decision Tree&quot;, &quot;SVM&quot;, &quot;Random Forest&quot;, &quot;KNN&quot;, &quot;ANN&quot;, &quot;Stacked Model&quot;),
+  &quot;Accuracy&quot; = c(0, round(cm_lr$overall[&quot;Accuracy&quot;], 4), round(cm_dt$overall[&quot;Accuracy&quot;], 4), round(cm_SVM$overall[&quot;Accuracy&quot;], 4), round(cm_rf$overall[&quot;Accuracy&quot;], 4), round(cm_KNN$overall[&quot;Accuracy&quot;], 4), round(cm_ANN$overall[&quot;Accuracy&quot;], 4), round(cm_stacked$overall[&quot;Accuracy&quot;], 4)),
+  &quot;Sensitivity&quot; = c(0, round(cm_lr$byClass[&quot;Sensitivity&quot;], 4), round(cm_dt$byClass[&quot;Sensitivity&quot;], 4), round(cm_SVM$byClass[&quot;Sensitivity&quot;], 4), round(cm_rf$byClass[&quot;Sensitivity&quot;], 4), round(cm_KNN$byClass[&quot;Sensitivity&quot;], 4), round(cm_ANN$byClass[&quot;Sensitivity&quot;], 4), round(cm_stacked$byClass[&quot;Sensitivity&quot;], 4))
+)
+results$FP_Cost &lt;- c(0, lr_fp_cost, dt_fp_cost, SVM_fp_cost, rf_fp_cost, KNN_fp_cost, ANN_fp_cost, stacked_fp_cost)
+results$FN_Cost &lt;- c(nm_total_cost, lr_fn_cost, dt_fn_cost, SVM_fn_cost, rf_fn_cost, KNN_fn_cost, ANN_fn_cost, stacked_fn_cost)
+results$Total_Cost &lt;- c(nm_total_cost, lr_total_cost, dt_total_cost, SVM_total_cost, rf_total_cost, KNN_total_cost, ANN_total_cost, stacked_total_cost)
+results$Cost_Savings &lt;- (nm_total_cost - results$Total_Cost)
+
+results$FP_Cost &lt;- format(round(results$FP_Cost, 2), big.mark = &quot;,&quot;)
+results$FN_Cost &lt;- format(round(results$FN_Cost, 2), big.mark = &quot;,&quot;)
+results$Total_Cost &lt;- format(round(results$Total_Cost, 2), big.mark = &quot;,&quot;)
+results$Cost_Savings &lt;- format(round(results$Cost_Savings, 2), big.mark = &quot;,&quot;)
+
+kable(results, format = &quot;markdown&quot;, digits = 4)</code></pre>
+<table>
+<colgroup>
+<col width="22%" />
+<col width="10%" />
+<col width="13%" />
+<col width="12%" />
+<col width="13%" />
+<col width="13%" />
+<col width="14%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Model</th>
+<th align="right">Accuracy</th>
+<th align="right">Sensitivity</th>
+<th align="left">FP_Cost</th>
+<th align="left">FN_Cost</th>
+<th align="left">Total_Cost</th>
+<th align="left">Cost_Savings</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">No Model</td>
+<td align="right">0.0000</td>
+<td align="right">0.0000</td>
+<td align="left">0.00</td>
+<td align="left">2,421,700.2</td>
+<td align="left">2,421,700.2</td>
+<td align="left">0.00</td>
+</tr>
+<tr class="even">
+<td align="left">Logistic Regression</td>
+<td align="right">0.9538</td>
+<td align="right">0.2717</td>
+<td align="left">30,667.41</td>
+<td align="left">1,873,601.8</td>
+<td align="left">1,904,269.2</td>
+<td align="left">517,431.02</td>
+</tr>
+<tr class="odd">
+<td align="left">Decision Tree</td>
+<td align="right">0.9459</td>
+<td align="right">0.7355</td>
+<td align="left">141,592.10</td>
+<td align="left">680,462.3</td>
+<td align="left">822,054.4</td>
+<td align="left">1,599,645.79</td>
+</tr>
+<tr class="even">
+<td align="left">SVM</td>
+<td align="right">0.9499</td>
+<td align="right">0.0399</td>
+<td align="left">2,609.99</td>
+<td align="left">2,470,171.5</td>
+<td align="left">2,472,781.5</td>
+<td align="left">-51,081.28</td>
+</tr>
+<tr class="odd">
+<td align="left">Random Forest</td>
+<td align="right">0.9774</td>
+<td align="right">0.6232</td>
+<td align="left">11,092.47</td>
+<td align="left">969,425.8</td>
+<td align="left">980,518.3</td>
+<td align="left">1,441,181.95</td>
+</tr>
+<tr class="even">
+<td align="left">KNN</td>
+<td align="right">0.9519</td>
+<td align="right">0.0000</td>
+<td align="left">112,229.68</td>
+<td align="left">801,640.6</td>
+<td align="left">913,870.2</td>
+<td align="left">1,507,829.98</td>
+</tr>
+<tr class="odd">
+<td align="left">ANN</td>
+<td align="right">0.9579</td>
+<td align="right">0.6377</td>
+<td align="left">82,214.77</td>
+<td align="left">932,140.2</td>
+<td align="left">1,014,355.0</td>
+<td align="left">1,407,345.26</td>
+</tr>
+<tr class="even">
+<td align="left">Stacked Model</td>
+<td align="right">0.9664</td>
+<td align="right">0.7388</td>
+<td align="left">71,774.79</td>
+<td align="left">652,498.1</td>
+<td align="left">724,272.9</td>
+<td align="left">1,697,427.29</td>
+</tr>
+</tbody>
+</table>
 </div>
 <div id="conclusion" class="section level3">
 <h3>Conclusion</h3>
