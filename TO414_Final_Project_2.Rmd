@@ -314,6 +314,7 @@ job$department <- NULL
 job$salary_range <- NULL
 job$industry <- NULL
 job$location <- NULL
+job$function. <- NULL
 
 str(job)
 summary(job)
@@ -419,7 +420,6 @@ dt_model <- C5.0(as.factor(fraudulent) ~ title
                  #+ employment_type #<- causes problem
                  #+ required_experience #<- causes problem
                  #+ required_education #<- causes problem
-                 #+ function. #<- causes problem
                  + salary_known
                  + department_clean
                  #+ industry_clean <- causes problem
@@ -427,9 +427,13 @@ dt_model <- C5.0(as.factor(fraudulent) ~ title
                  + loc_country_new
                  , data = job_train)
 
-# push through matrix dummy, then push through (janintor - clean names)
+# push through matrix dummy, then push through (janitor - clean names)
 
 plot(dt_model)
+
+dt_model_scaled <- C5.0(as.factor(fraudulent) ~ ., data = job_scaled_train)
+
+plot(dt_model_scaled)
 
 #print(dt_model)
 
