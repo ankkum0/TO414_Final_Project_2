@@ -68,29 +68,250 @@ job$function. <- as.factor(job$function.)
 job$benefits <- ifelse(is.na(job$benefits), mean(job$benefits, na.rm = T), job$benefits)
 ```
 
+```{r}
+## With 84% of the values being null anyways CHATGPT said to just create binary
+# Count blanks
+sum(job$salary_range == "", na.rm = TRUE)
+
+job$salary_known <- ifelse(is.na(job$salary_range) | job$salary_range == "", 0, 1)
+job$salary_known <- factor(job$salary_known)
+table(job$salary_known)
+
+```
+
+
+
+
+## Department Cleaning
+```{r}
+# 1️⃣ Convert to character, trim, lowercase
+job$department_clean <- tolower(trimws(as.character(job$department)))
+
+# 2️⃣ Replace blanks or NAs with "NA"
+job$department_clean[job$department_clean == "" | is.na(job$department_clean)] <- "NA"
+
+# 3️⃣ Merge obvious duplicates / similar departments
+merge_list <- list(
+  "customer service" = c("customer service", "customer service ", "cs", "csd relay"),
+  "it"               = c("it", "information technology", "it services"),
+  "marketing"        = c("marketing", "performance marketing"),
+  "sales"            = c("sales", "sales and marketing"),
+  "administration"   = c("admin", "administrative", "administration", "administration support", "admin/clerical", "admin - clerical"),
+  "accounting"       = c("accounting", "accounting/finance", "accounting and finance", "accounting & finance", "accounting/payroll"),
+  "engineering"      = c("engineering", "engineering "),
+  "hr"               = c("hr", "human resources"),
+  "product"          = c("product", "product development", "product innovation", "product team"),
+  "operations"       = c("operations", "oil & energy", "oil and gas", "maintenance"),
+  "customer_facing"        = c("client services", "customer success", "customer support", "content", "creative services"),
+  "business_management"    = c("business", "business development", "management", "project management"),
+  "tech_development"       = c("software development", ".net", ".net development", "tech", "technical", "technical support", "design", "development"),
+  "education_training"     = c("didactics", "education", "editorial"),
+  "operations_logistics"   = c("warehouse", "voyageur medical transportation")
+)
+
+# Apply merges
+for (new_name in names(merge_list)) {
+  job$department_clean[job$department_clean %in% merge_list[[new_name]]] <- new_name
+}
+
+# 4️⃣ Group rare departments (≤10 occurrences) into "other"
+dept_counts <- table(job$department_clean)
+job$department_clean <- ifelse(dept_counts[job$department_clean] > 20,
+                               job$department_clean,
+                               "other")
+
+# 5️⃣ Convert to factor
+job$department_clean <- factor(job$department_clean)
+
+# Check resulting counts
+table(job$department_clean)
+
+```
+
+### Industry Clean
+
+```{r}
+# Convert to character and trim whitespace
+job$industry_clean <- trimws(as.character(job$industry))
+
+# Replace blanks or NA with "NA"
+job$industry_clean[job$industry_clean == "" | is.na(job$industry_clean)] <- "NA"
+
+# Create industry groupings
+industry_map <- list(
+  "Technology & Software" = c(
+    "Computer Software", "Information Technology and Services", "Internet",
+    "Computer Games", "Computer Hardware", "Computer Networking", 
+    "Computer & Network Security", "Semiconductors", "Information Services",
+    "Program Development", "Nanotechnology"
+  ),
+  "Healthcare, Wellness & Life Sciences" = c(
+    "Healthcare, Wellness & Life Sciences", "Hospital & Health Care",
+    "Medical Practice", "Mental Health Care", "Health, Wellness and Fitness",
+    "Pharmaceuticals", "Biotechnology", "Medical Devices", "Veterinary"
+  ),
+  "Finance, Banking & Insurance" = c(
+    "Financial Services", "Banking", "Insurance", "Investment Management",
+    "Venture Capital & Private Equity", "Capital Markets", "Investment Banking",
+    "Accounting"
+  ),
+  "Business Administration" = c(
+    "Staffing and Recruiting", "Human Resources", "Executive Office"
+  ),
+  "Consulting, Professional Services & Legal" = c(
+    "Management Consulting", "Legal Services", "Law Practice", "Government Relations",
+    "Alternative Dispute Resolution", "Individual & Family Services"
+  ),
+  "Consumer Goods, Retail & Fashion" = c(
+    "Consumer Goods", "Consumer Services", "Retail", "Apparel & Fashion",
+    "Cosmetics", "Sporting Goods", "Luxury Goods & Jewelry", "Textiles",
+    "Furniture", "Consumer Electronics", "Wholesale"
+  ),
+  "Media, Entertainment & Creative" = c(
+    "Public Relations and Communications", "Media Production", "Broadcast Media",
+    "Publishing", "Music", "Entertainment", "Animation", "Graphic Design",
+    "Design", "Photography", "Writing and Editing", "Motion Pictures and Film",
+    "Market Research", "Online Media", "Performing Arts", "Sports",
+    "Marketing and Advertising"
+  ),
+  "Hospitality, Travel & Leisure" = c(
+    "Hospitality", "Leisure, Travel & Tourism", "Restaurants", "Gambling & Casinos",
+    "Airlines/Aviation", "Events Services", "Facilities Services"
+  ),
+  "Education & Training" = c(
+    "Education Management", "E-Learning", "Primary/Secondary Education", 
+    "Higher Education", "Professional Training & Coaching", "Libraries",
+    "Museums and Institutions", "Translation and Localization", "Research"
+  ),
+  "Manufacturing & Industrial" = c(
+    "Electrical/Electronic Manufacturing", "Mechanical or Industrial Engineering",
+    "Industrial Automation", "Machinery", "Chemicals", "Plastics",
+    "Printing", "Packaging and Containers", "Shipbuilding", "Civil Engineering",
+    "Automotive", "Business Supplies and Equipment"
+  ),
+  "Energy, Utilities & Environment" = c(
+    "Oil & Energy", "Renewables & Environment", "Utilities", "Environmental Services",
+    "Mining & Metals", "Wireless", "Telecommunications"
+  ),
+  "Transportation, Logistics & Supply Chain" = c(
+    "Logistics and Supply Chain", "Warehousing", "Transportation/Trucking/Railroad",
+    "Package/Freight Delivery", "Maritime", "Import and Export",
+    "International Trade and Development", "Outsourcing/Offshoring"
+  ),
+  "Agriculture, Food & Natural Resources" = c(
+    "Food & Beverages", "Food Production", "Farming", "Fishery", "Ranching",
+    "Wine and Spirits"
+  ),
+  "Real Estate & Construction" = c(
+    "Construction", "Real Estate", "Commercial Real Estate", "Building Materials",
+    "Architecture & Planning"
+  ),
+  "Government, Nonprofit & Public Sector" = c(
+    "Government Administration", "Nonprofit Organization Management",
+    "Civic & Social Organization", "Public Policy", "Public Safety",
+    "Law Enforcement", "Philanthropy", "Fund-Raising", "Religious Institutions"
+  ),
+  "Defense, Security & Aerospace" = c(
+    "Defense & Space", "Military", "Security and Investigations", "Aviation & Aerospace"
+  )
+)
+
+# Apply the mapping
+for (group in names(industry_map)) {
+  job$industry_clean[job$industry_clean %in% industry_map[[group]]] <- group
+}
+
+# Optional: group any remaining very rare industries into "other"
+industry_counts <- table(job$industry_clean)
+job$industry_clean <- ifelse(industry_counts[job$industry_clean] > 10,
+                             job$industry_clean,
+                             "other")
+
+# Convert to factor
+job$industry_clean <- factor(job$industry_clean)
+
+# Check resulting counts
+table(job$industry_clean)
+
+```
+
+```{r}
+# Convert to character and trim whitespace
+job$function_clean <- trimws(as.character(job$function.))  # assuming your column is 'function.'
+
+# Replace blanks or NA with "NA"
+job$function_clean[job$function_clean == "" | is.na(job$function_clean)] <- "NA"
+
+# Create function groupings
+function_map <- list(
+  "Marketing & Advertising" = c("Marketing & Advertising", "Marketing", "Advertising", "Public Relations"),
+  "Analytics & Business Development" = c("Business Development", "Data Analyst", "Business Analyst"),
+  "Sales & Customer Service & IT" = c("Customer Service", "Sales", "Information Technology"),
+  "Management & Leadership" = c("Management", "Strategy/Planning", "General Business", "Administrative"),
+  "Engineering & Production" = c("Engineering", "Production", "Manufacturing", "Product & Project", "Product Management", "Project Management"),
+  "Healthcare & Science" = c("Health Care Provider", "Science"),
+  "Supply Chain & Logistics" = c("Supply Chain", "Purchasing", "Distribution"),
+  "Finance & Accounting" = c("Finance", "Accounting/Auditing", "Financial Analyst"),
+  "Human Resources & Training" = c("Human Resources", "Training", "Consulting"),
+  "Legal & Compliance" = c("Legal", "Quality Assurance"),
+  "Arts" = c("Art/Creative", "Writing/Editing", "Design")
+)
+
+# Apply the mapping
+for (group in names(function_map)) {
+  job$function_clean[job$function_clean %in% function_map[[group]]] <- group
+}
+
+# Optional: group any remaining very rare functions into "other"
+function_counts <- table(job$function_clean)
+job$function_clean <- ifelse(function_counts[job$function_clean] > 10,
+                             job$function_clean,
+                             "other")
+
+# Convert to factor
+job$function_clean <- factor(job$function_clean)
+
+# Check resulting counts
+table(job$function_clean)
+
+```
+
+
+
+
 ### Check Data
 ```{r}
-str(job)
-summary(job)
+
 
 # The following columns have too many factor levels (will have to clean up for real model). For this rough model, let's just remove them for now. If a column has too many factor levels it will take the logistic regression model an extremely long time to run. Any column with more than 40 factor levels was removed. 
 
-# Grab the country - NOT WORKING YET
-#job$loc_country <- substr(job$location, 1, 2)
-#job$loc_country <- as.factor(job$loc_country)
-#loc_count <- as.data.frame(table(job$loc_country))
+# Grab the country 
+job$loc_country <- substr(job$location, 1, 2)
+job$loc_country <- as.factor(job$loc_country)
+loc_count <- as.data.frame(table(job$loc_country))
 
-#sort(table(job$loc_country))
+sort(table(job$loc_country))
 
-#job$loc_country_val <- loc_count[job$loc_count, 2]
-#job$loc_country_new <- ifelse((job$loc_country_val > 10), job_clean$job, "Other")
+# tabulate counts by country
+tab <- table(job$loc_country)
+# map counts back to rows
+job$loc_country_val <- as.integer(tab[ as.character(job$loc_country) ])
+# create new column: keep country if count>10, else "Other"
+job$loc_country_new <- ifelse(job$loc_country_val > 30, as.character(job$loc_country), "Other")
+# Convert to factor first
+job$loc_country_new[is.na(job$loc_country_new) | job$loc_country_new == ""] <- "NA"
+job$loc_country_new <- factor(job$loc_country_new)
 
-job$location <- NULL
+
+job$loc_country_val <- NULL
+job$loc_country <- NULL
 job$department <- NULL
 job$salary_range <- NULL
 job$industry <- NULL
+job$location <- NULL
 
-
+str(job)
+summary(job)
 ```
 
 ### Dummify and Scale Data for KNN and ANN Models
@@ -147,6 +368,7 @@ summary(job_scaled_test$fraudulent)
 
 # The mean value is similar between the train and test data sets signifying the split was done successfully
 ```
+
 
 ## Step 4 & 5: Build a Model + Predict
 Now that the data has been split, it is time to create the various models. We will be loading in any necessary libraries, then creating the models based on the training data (`job_train` and `job_scaled_train`). Once the models are trained on the data and then evaluated, we can then use them in the future to predict whether job postings are fraudulent. We will also improve/optimize these models, using different levers based on the model.
@@ -263,23 +485,58 @@ rf_pred <- predict(rf_model, job_test)
 
 ```
 
+
 ### KNN Model
 For the KNN model, we can improve the model by modifying the `k` value and changing the `KNN_pred_cutoff` value. We want to extract the probabilities (`KNN_prob`) for the stacked model, so that we have the most "raw" version of the predictions/results.
 
 ```{r}
-library(class) # We need this library to run a KNN model
+library(class)
+
+# Identify predictor columns (all except the target)
+predictor_cols <- colnames(job_scaled_train)[colnames(job_scaled_train) != "fraudulent"]
+
+# Train and test predictor matrices
+train_X <- job_scaled_train[, predictor_cols]
+test_X  <- job_scaled_test[, predictor_cols]
+
+# Target vector
+train_y <- job_scaled_train$fraudulent
+
+# Run KNN
+KNN_pred <- knn(
+  train = train_X,
+  test  = test_X,
+  cl    = train_y,   # correct: target vector
+  k     = 15,
+  prob  = TRUE
+)
+
+# Convert KNN "prob" attribute to numeric probabilities
+KNN_prob <- ifelse(KNN_pred == "1",
+                   attr(KNN_pred, "prob"),
+                   1 - attr(KNN_pred, "prob"))
+
+# Apply cutoff
+KNN_pred_cutoff <- 0.5
+KNN_bin_prob <- ifelse(KNN_prob >= KNN_pred_cutoff, 1, 0)
+
+```
+
+
+```{r}
+#library(class) # We need this library to run a KNN model
 
 # Build Model + Predict
-KNN_pred <- knn(train = job_scaled_train[, -72],
-                  test = job_scaled_test[, -72],
-                  cl = job_scaled_train[, 72],
-                  k = 15, prob = TRUE) 
+#KNN_pred <- knn(train = job_scaled_train[, -100],
+#                  test = job_scaled_test[, -100],
+#                  cl = job_scaled_train[, -100],
+ #                 k = 15, prob = TRUE) 
 
-KNN_prob <- ifelse(KNN_pred == "1", attr(KNN_pred, "prob"), 1 - attr(KNN_pred, "prob")) #to get most raw data
+#KNN_prob <- ifelse(KNN_pred == "1", attr(KNN_pred, "prob"), 1 - attr(KNN_pred, "prob")) #to get most raw data
 
-KNN_pred_cutoff <- 0.5
+#KNN_pred_cutoff <- 0.5
 
-KNN_bin_prob <- ifelse(KNN_prob >= KNN_pred_cutoff, 1, 0)
+#KNN_bin_prob <- ifelse(KNN_prob >= KNN_pred_cutoff, 1, 0)
 ```
 
 ### ANN Model
