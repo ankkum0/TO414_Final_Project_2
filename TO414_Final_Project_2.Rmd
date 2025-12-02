@@ -69,7 +69,7 @@ job$benefits <- ifelse(is.na(job$benefits), mean(job$benefits, na.rm = T), job$b
 ```
 
 ```{r}
-## With 84% of the values being null anyways CHATGPT said to just create binary
+# With 84% of the values being null, we figured it best to transform the data into binary values of whether salary is known or not. It did not make sense to try to replace NA values with the mean since we only have values for 16% of the data. 
 # Count blanks
 sum(job$salary_range == "", na.rm = TRUE)
 
@@ -78,9 +78,6 @@ job$salary_known <- factor(job$salary_known)
 table(job$salary_known)
 
 ```
-
-
-
 
 ## Department Cleaning
 ```{r}
@@ -116,7 +113,7 @@ for (new_name in names(merge_list)) {
 
 # 4️⃣ Group rare departments (≤10 occurrences) into "other"
 dept_counts <- table(job$department_clean)
-job$department_clean <- ifelse(dept_counts[job$department_clean] > 20,
+job$department_clean <- ifelse(dept_counts[job$department_clean] > 10,
                                job$department_clean,
                                "other")
 
@@ -221,7 +218,7 @@ for (group in names(industry_map)) {
   job$industry_clean[job$industry_clean %in% industry_map[[group]]] <- group
 }
 
-# Optional: group any remaining very rare industries into "other"
+# Optional: group any remaining very rare industries (≤10 occurrences) into "other"
 industry_counts <- table(job$industry_clean)
 job$industry_clean <- ifelse(industry_counts[job$industry_clean] > 10,
                              job$industry_clean,
@@ -282,7 +279,6 @@ table(job$function_clean)
 ### Check Data
 ```{r}
 
-
 # The following columns have too many factor levels (will have to clean up for real model). For this rough model, let's just remove them for now. If a column has too many factor levels it will take the logistic regression model an extremely long time to run. Any column with more than 40 factor levels was removed. 
 
 # Grab the country 
@@ -296,13 +292,13 @@ sort(table(job$loc_country))
 tab <- table(job$loc_country)
 # map counts back to rows
 job$loc_country_val <- as.integer(tab[ as.character(job$loc_country) ])
-# create new column: keep country if count>10, else "Other"
-job$loc_country_new <- ifelse(job$loc_country_val > 30, as.character(job$loc_country), "Other")
+# create new column: keep country if count > 10, else "Other"
+job$loc_country_new <- ifelse(job$loc_country_val > 10, as.character(job$loc_country), "Other")
 # Convert to factor first
 job$loc_country_new[is.na(job$loc_country_new) | job$loc_country_new == ""] <- "NA"
 job$loc_country_new <- factor(job$loc_country_new)
 
-
+# We need to remove these columns since we have cleaned them and replaced them with a cleaned version
 job$loc_country_val <- NULL
 job$loc_country <- NULL
 job$department <- NULL
@@ -411,15 +407,22 @@ dt_model <- C5.0(as.factor(fraudulent) ~ title
                  + telecommuting
                  + has_company_logo
                  + has_questions
-                 #+ employment_type <- causes problem
-                 #+ required_experience <- causes problem
-                 #+ required_education <- causes problem
-                 #+ function.<- causes problem
+                 #+ employment_type #<- causes problem
+                 #+ required_experience #<- causes problem
+                 #+ required_education #<- causes problem
+                 #+ function. #<- causes problem
+                 + salary_known
+                 + department_clean
+                 #+ industry_clean <- causes problem
+                 + function_clean
+                 + loc_country_new
                  , data = job_train)
 
 # push through matrix dummy, then push through (janintor - clean names)
 
 plot(dt_model)
+
+#print(dt_model)
 
 # Predict (without weights)
 dt_pred <- predict(dt_model, job_test)
@@ -442,7 +445,6 @@ plot(dt_cost_model)
 
 # Predict (with weights)
 dt_weights_pred <- predict(dt_cost_model, job_test)
-
 ```
 
 ### SVM Model
