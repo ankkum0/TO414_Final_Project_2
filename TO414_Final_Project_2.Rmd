@@ -56,21 +56,207 @@ We want to remove columns that are irrelevant or that we will not have access to
 
 ```{r}
 job$job_id <- NULL # This is not necessary, so let's delete it
-job$title <- nchar(job$title) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+## Since we are doing a rough model, instead of parsing the string, let's just get the length
 job$location <- as.factor(job$location)
 job$department <- as.factor(job$department)
 job$salary_range <- as.factor(job$salary_range)
-job$company_profile <- nchar(job$company_profile) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job$description <- nchar(job$description) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job$requirements <- nchar(job$requirements) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job$benefits <- nchar(job$benefits) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+
+# # Since we are doing a rough model, instead of parsing the string, let's just get the length
+#
+
 job$employment_type <- as.factor(job$employment_type)
 job$required_experience <- as.factor(job$required_experience)
 job$required_education <- as.factor(job$required_education)
 job$industry <- as.factor(job$industry)
 job$function. <- as.factor(job$function.)
+
+```
+
+# Benefits
+```{r}
+# Create binary flags for top 5 signals in benefits
+job$benefits_pipe <- grepl("\\|", job$benefits)       # pipe symbol
+job$benefits_hash <- grepl("#", job$benefits)         # hash symbol
+job$benefits_bonus <- grepl("bonus", job$benefits, ignore.case = TRUE)  # keyword: bonus
+job$benefits_apply <- grepl("apply|contact", job$benefits, ignore.case = TRUE)  # keywords: apply/contact
+job$benefits_benefits <- grepl("benefits", job$benefits, ignore.case = TRUE)  # keyword: benefits
+
+# Convert to numeric 0/1 if needed
+job[, c("benefits_pipe", "benefits_hash", "benefits_bonus",
+        "benefits_apply", "benefits_benefits")] <- 
+  lapply(job[, c("benefits_pipe", "benefits_hash", "benefits_bonus",
+                 "benefits_apply", "benefits_benefits")], as.numeric)
+
+job$benefits <- nchar(job$benefits) # Since we are doing a rough model, instead of parsing the string, let's just get the length
 job$benefits <- ifelse(is.na(job$benefits), mean(job$benefits, na.rm = T), job$benefits)
 ```
+
+
+
+# Title
+```{r}
+library(dplyr)
+library(stringr)
+
+job <- job %>%
+  mutate(
+    slash_present      = if_else(str_detect(title, "/"), 1, 0),     # slash
+    backslash_present  = if_else(str_detect(title, "\\\\"), 1, 0), # backslash
+    amp_present        = if_else(str_detect(title, "&"), 1, 0),    # ampersand
+    exclam_present     = if_else(str_detect(title, "!"), 1, 0),    # exclamation
+    dash_present       = if_else(str_detect(title, "-"), 1, 0),    # dash/hyphen
+    multiple_spaces    = if_else(str_detect(title, " {2,}"), 1, 0),# double spaces
+    parens_present     = if_else(str_detect(title, "\\(|\\)"), 1, 0), # parentheses
+    numbers_present    = if_else(str_detect(title, "[0-9]"), 1, 0) # any digits
+  )
+
+
+job$title <- nchar(job$title) 
+```
+
+
+```{r}
+
+# Make everything lowercase once for speed
+job <- job %>%
+  mutate(req_clean = tolower(requirements))
+
+# 1. Requirements missing or very short (< 10 words)
+job$req_missing_or_short <- as.integer(
+  is.na(job$req_clean) | str_count(job$req_clean, "\\w+") < 10
+)
+
+# 2. Heavy engineering / industrial terms
+eng_terms <- c(
+  "asme", "api", "ansi", "pressure vessel", "heat exchanger", 
+  "pumps", "compressor", "valve", "kilovolt", "kv", 
+  "scada", "plc", "p&id", "process hazard", "piping"
+)
+
+job$has_heavy_engineering_terms <- as.integer(
+  str_detect(job$req_clean, str_c(eng_terms, collapse = "|"))
+)
+
+# 3. Certifications / accreditations
+cert_terms <- c(
+  "pmp", "pe", "certified", "license", "licence",
+  "six sigma", "cfa", "osha", "hazwoper"
+)
+
+job$has_certification_terms <- as.integer(
+  str_detect(job$req_clean, str_c(cert_terms, collapse = "|"))
+)
+
+# 4. Years of experience (1+, 2+, “years”, “5-10”, etc.)
+job$has_years_experience <- as.integer(
+  str_detect(job$req_clean, "\\d+\\+?\\s*years?")
+)
+
+# 5. Degree required
+job$has_degree_required <- as.integer(
+  str_detect(job$req_clean, "bachelor|degree|required degree|bs |ms |mba")
+)
+
+# 6. Software / tools
+tool_terms <- c(
+  "ms office", "excel", "word", "powerpoint",
+  "sap", "quickbooks", "primavera", "autocad"
+)
+
+job$has_tool_software_terms <- as.integer(
+  str_detect(job$req_clean, str_c(tool_terms, collapse = "|"))
+)
+
+# 7. Safety / regulatory language
+safety_terms <- c(
+  "osha", "compliance", "safety procedures", "audit",
+  "regulations", "hazmat", "hazard"
+)
+
+job$has_safety_regulation_terms <- as.integer(
+  str_detect(job$req_clean, str_c(safety_terms, collapse = "|"))
+)
+
+# 8. Heavy bullet lists / long enumerations
+job$req_contains_heavy_lists <- as.integer(
+  str_count(job$req_clean, "- |•|\\*|\\n") > 10
+)
+
+# 9. Title–requirement mismatch flag
+# (Engineering terms inside non-engineering jobs)
+job$req_title_mismatch <- with(job, as.integer(
+  str_detect(req_clean, str_c(eng_terms, collapse = "|")) &
+    !str_detect(tolower(title), "engineer|technician|operator|mechanic")
+))
+
+job$req_clean <- NULL
+job$requirements <- nchar(job$requirements) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+```
+
+
+# Description
+```{r}
+# Create 10 binary feature columns from job$description
+
+job$has_urgent_language <- as.integer(grepl(
+  "urgent|apply now|immediate start|asap|start immediately",
+  job$description, ignore.case = TRUE))
+
+job$has_no_experience_needed <- as.integer(grepl(
+  "no experience|training provided|any background|anyone can apply",
+  job$description, ignore.case = TRUE))
+
+job$has_salary_info <- as.integer(grepl(
+  "\\$|salary|per hour|per annum|k",   # detects any salary mention
+  job$description, ignore.case = TRUE))
+
+job$has_qualification_terms <- as.integer(grepl(
+  "bachelor|degree|certificate|qualification|experience required",
+  job$description, ignore.case = TRUE))
+
+job$has_benefits_stated <- as.integer(grepl(
+  "benefits|health insurance|401k|superannuation|paid time off|leave",
+  job$description, ignore.case = TRUE))
+
+job$has_technical_terms <- as.integer(grepl(
+  "sql|python|excel|jira|crm|compliance|financial analysis",
+  job$description, ignore.case = TRUE))
+
+job$has_contact_number_or_whatsapp <- as.integer(grepl(
+  "\\b\\d{3}[- ]?\\d{3}[- ]?\\d{4}\\b|whatsapp",
+  job$description, ignore.case = TRUE))
+
+job$has_company_language <- as.integer(grepl(
+  "team|mission|vision|culture|values|our company",
+  job$description, ignore.case = TRUE))
+
+job$has_commission_only_language <- as.integer(grepl(
+  "commission only|high earning|earn up to|unlimited income",
+  job$description, ignore.case = TRUE))
+
+job$description <- nchar(job$description)
+```
+
+
+# Company Profile
+```{r}
+library(dplyr)
+library(stringr)
+
+job <- job %>%
+  mutate(
+    has_referral_bonus = ifelse(str_detect(tolower(company_profile), "referral bonus|bonus for referral"), 1, 0),
+    has_signing_bonus  = ifelse(str_detect(tolower(company_profile), "signing bonus|bonus by"), 1, 0),
+    has_perks          = ifelse(str_detect(tolower(company_profile), "perks|corporate discounts|benefits"), 1, 0),
+    has_relocation     = ifelse(str_detect(tolower(company_profile), "relocation|out of town candidates|move assistance"), 1, 0)
+  )
+
+# Preview
+#job %>% select(company_profile, has_referral_bonus, has_signing_bonus, has_perks, has_relocation) %>% head()
+job$company_profile <- nchar(job$company_profile) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+```
+
+
 
 ```{r}
 # With 84% of the values being null, we figured it best to transform the data into binary values of whether salary is known or not. It did not make sense to try to replace NA values with the mean since we only have values for 16% of the data. 
