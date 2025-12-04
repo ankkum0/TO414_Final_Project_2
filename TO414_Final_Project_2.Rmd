@@ -43,7 +43,7 @@ job <- read.csv("fake_job_postings.csv")
 ```
 
 ## Step 2: Clean Data
-We need get a sense of the data, before we can start cleaning it. It is important to remove any columns that are unnecessary or would be data we should not use in our prediction models (e.g., data that would not be available to make predictions). It is also a good time to deal with NA data (if there are any). Also, for KNN and ANN model, it is important to dummify and scale the data. So, we will use `job` for the logistic regression, SVM, random forest, and decision tree models and `job_scaled` for the KNN and ANN models. After cleaning the data, it is good to double check the data to ensure the desired results are achieved. 
+We need get a sense of the data, before we can start cleaning it. It is important to remove any columns that are unnecessary or would be data we should not use in our prediction models (e.g., data that would not be available to make predictions). It is also a good time to deal with NA data (if there are any). Also, we deal with the variables with too many factors (>40) do not behave well in certain models, so cosolidating them here will be important. Also, for KNN and ANN model, it is important to dummify and scale the data. So, we will use `job` for the logistic regression, SVM, and random forest models, use  `job_dummy` decision tree model (the non-dummified version will not produce a model based on our data) and `job_scaled` for the KNN and ANN models. After cleaning the data, it is good to double check the data to ensure the desired results are achieved. 
 
 ### Explore Data
 ```{r}
@@ -56,14 +56,11 @@ We want to remove columns that are irrelevant or that we will not have access to
 
 ```{r}
 job$job_id <- NULL # This is not necessary, so let's delete it
-## Since we are doing a rough model, instead of parsing the string, let's just get the length
+
+# All of these should be treated like factors instead of strings
 job$location <- as.factor(job$location)
 job$department <- as.factor(job$department)
 job$salary_range <- as.factor(job$salary_range)
-
-# # Since we are doing a rough model, instead of parsing the string, let's just get the length
-#
-
 job$employment_type <- as.factor(job$employment_type)
 job$required_experience <- as.factor(job$required_experience)
 job$required_education <- as.factor(job$required_education)
@@ -72,7 +69,9 @@ job$function. <- as.factor(job$function.)
 
 ```
 
-# Benefits
+### Benefits Cleaning
+Here we parse the words in the benefits columns and transforming them into binary variables. 
+
 ```{r}
 # Create binary flags for top 5 signals in benefits
 job$benefits_pipe <- grepl("\\|", job$benefits)       # pipe symbol
@@ -87,13 +86,15 @@ job[, c("benefits_pipe", "benefits_hash", "benefits_bonus",
   lapply(job[, c("benefits_pipe", "benefits_hash", "benefits_bonus",
                  "benefits_apply", "benefits_benefits")], as.numeric)
 
-job$benefits <- nchar(job$benefits) # Since we are doing a rough model, instead of parsing the string, let's just get the length
-job$benefits <- ifelse(is.na(job$benefits), mean(job$benefits, na.rm = T), job$benefits)
+job$benefits <- nchar(job$benefits) # Number of characters (length of benefit section) might be beneficial to our prediction model
+job$benefits <- ifelse(is.na(job$benefits), mean(job$benefits, na.rm = T), job$benefits) # deal with NAs by replacing with mean value
 ```
 
 
 
-# Title
+### Title Cleaning
+Here we parse the words in the title columns and transforming them into binary variables. 
+
 ```{r}
 library(dplyr)
 library(stringr)
@@ -111,9 +112,11 @@ job <- job %>%
   )
 
 
-job$title <- nchar(job$title) 
+job$title <- nchar(job$title) # Number of characters (length of title section) might be beneficial to our prediction model
 ```
 
+### Requirments Cleaning
+Here we parse the words in the requirements columns and transforming them into binary variables. 
 
 ```{r}
 
@@ -189,12 +192,14 @@ job$req_title_mismatch <- with(job, as.integer(
     !str_detect(tolower(title), "engineer|technician|operator|mechanic")
 ))
 
-job$req_clean <- NULL
-job$requirements <- nchar(job$requirements) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$req_clean <- NULL # No longer need this
+job$requirements <- nchar(job$requirements) # Number of characters (length of requirement section) might be beneficial to our prediction model
 ```
 
 
-# Description
+### Description Cleaning
+Here we parse the words in the description columns and transforming them into binary variables. 
+
 ```{r}
 # Create 10 binary feature columns from job$description
 
@@ -234,11 +239,13 @@ job$has_commission_only_language <- as.integer(grepl(
   "commission only|high earning|earn up to|unlimited income",
   job$description, ignore.case = TRUE))
 
-job$description <- nchar(job$description)
+job$description <- nchar(job$description) # Number of characters (length of description section) might be beneficial to our prediction model
 ```
 
 
-# Company Profile
+### Company Profile Cleaning
+Here we parse the words in the company profile columns and transforming them into binary variables. 
+
 ```{r}
 library(dplyr)
 library(stringr)
@@ -253,10 +260,10 @@ job <- job %>%
 
 # Preview
 #job %>% select(company_profile, has_referral_bonus, has_signing_bonus, has_perks, has_relocation) %>% head()
-job$company_profile <- nchar(job$company_profile) # Since we are doing a rough model, instead of parsing the string, let's just get the length
+job$company_profile <- nchar(job$company_profile) # Number of characters (length of company profile section) might be beneficial to our prediction model
 ```
 
-
+### Salary Range Cleaning
 
 ```{r}
 # With 84% of the values being null, we figured it best to transform the data into binary values of whether salary is known or not. It did not make sense to try to replace NA values with the mean since we only have values for 16% of the data. 
@@ -422,6 +429,7 @@ job$industry_clean <- factor(job$industry_clean)
 table(job$industry_clean)
 
 ```
+
 ### Function Cleaning
 
 ```{r}
@@ -465,12 +473,9 @@ table(job$function_clean)
 
 ```
 
-
-
 ### Location Cleaning
 
 ```{r}
-# The following columns have too many factor levels (will have to clean up for real model). For this rough model, let's just remove them for now. If a column has too many factor levels it will take the logistic regression model an extremely long time to run. Any column with more than 40 factor levels was removed. 
 
 # Grab the country 
 job$loc_country <- substr(job$location, 1, 2)
@@ -508,24 +513,29 @@ summary(job)
 
 ### Dummify and Scale Data for KNN and ANN Models
 ```{r}
-# We can use job for the Logistic Regression, Decision Tree, SVM Models, random forest, and Decision Trees
+# We can use job for the Logistic Regression, SVM Models, random forest, and Decision Trees
 
-# For the KNN and ANN models, we need to dummify and scale the data
+# For the Decision Tree model, we need to dummify the data
 job_dummy <- as.data.frame(model.matrix(~ . -1, data = job)) 
 
 minmax <- function(x) {
   (x - min(x)) / (max(x) - min(x))
 }
 
+# For the KNN and ANN models, we need to dummify and scale the data
 job_scaled <- as.data.frame(lapply(job_dummy, minmax))
 ```
 
 
 ### Final Data Check
 ```{r}
-# Data for Logistic Regression, Decision Tree, SVM, and Random Forest models
+# Data for Logistic Regression, SVM, and Random Forest models
 str(job)
 summary(job)
+
+# Data for Decision Tree Model
+str(job_dummy)
+summary(job_dummy)
 
 # Data for KNN and ANN models
 str(job_scaled)
@@ -543,9 +553,13 @@ trainprop <- 0.7 # This is the proportion of data we want in our training data s
 set.seed(12345) # Let's make the randomization "not so random"
 train_rows <- sample(1:nrow(job), trainprop*nrow(job)) # Get the rows for the training data. We can use train_rows for both job and job_scaled as both data sets have the same number of rows/observations. 
 
-# Train and test data for Logistic Regression, Decision Tree, SVM, and Random Forest Models
+# Train and test data for Logistic Regression, SVM, and Random Forest Models
 job_train <- job[train_rows, ] # Store the training data
 job_test <- job[-train_rows, ] # Store the testing data
+
+# Train and test data for Decision Tree Model
+job_dummy_train <- job_dummy[train_rows, ] # Store the training data
+job_dummy_test <- job_dummy[-train_rows, ] # Store the testing data
 
 # Train and test data for KNN and ANN models
 job_scaled_train <- job_scaled[train_rows, ] # Store the training data
@@ -554,6 +568,9 @@ job_scaled_test <- job_scaled[-train_rows, ] # Store the testing data
 # Let's do a quick check that random split worked (using dependent variable)
 summary(job_train$fraudulent)
 summary(job_test$fraudulent)
+
+summary(job_dummy_train$fraudulent)
+summary(job_dummy_test$fraudulent)
 
 summary(job_scaled_train$fraudulent)
 summary(job_scaled_test$fraudulent)
@@ -574,7 +591,47 @@ For the logistic regression model, we can improve the model by adding combinatio
 # Since we are trying to predict fraudulent, will have that be our response variable. Since we are using all other columns to predict fraudulent, those will be our predictor variables. 
 
 # Let's add some other combinations of predictors to increase the model's accuracy and sensitivity
-lr_model <- glm(fraudulent ~ ., data = job_train, family = "binomial")
+# lr_model <- glm(fraudulent ~ . + industry_clean * function_clean
+                               #+ description * benefits
+                               #+ description * requirements 
+                               #+ required_experience * required_education
+                               #+ employment_type * required_experience
+                               #+ employment_type * required_education
+                               #+ required_experience * has_years_experience
+                                #, data = job_train, family = "binomial")
+# saveRDS(lr_model, "lrJobModel.RDS")
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+lr_model <- readRDS("lrJobModel.RDS")
+
+# Predictor - Accuracy | Sensitivity
+  # Base - 0.9627 | 0.42029
+  # industry_clean * function_clean - 0.9623 | 0.44928
+  # description * benefits - 0.9625 | 0.45290
+  # description * requirements - 0.962 | 0.45652
+  # required_experience * required_education - 0.9631 | 0.49275
+  # employment_type * required_experience - 0.9618 | 0.49638
+  # employment_type * required_education - 0.9532 | 0.52899
+  # required_experience * has_years_experience - 0.9629 | 0.52899
+
+# The following combinations of predictors decreased the model's sensitivity and/or accuracy
+  #+ required_experience * has_no_experience_needed
+  #+ benefits * has_benefits_stated
+  #+ benefits * has_referral_bonus
+  #+ benefits * has_signing_bonus
+
+# 2nd Logistic Regression Model - using step function to optimize through all combinations of predictors (.*.)
+# 2nd model was attempted, however due to number of variables/columns, it took too long
+
+# m1 <- glm(fraudulent ~ . + .*., data = job_train, family = "binomial")
+# saveRDS(m1, "LRJobModel_m1.RDS")
+# lr_model_2 <- step(m1, direction = "backward") 
+# saveRDS(lr_model_2, "LRJobModel_2.RDS")
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+# lr_model_2 <- readRDS("LRSporModel_2.RDS")
 
 # Predict
 
@@ -593,57 +650,31 @@ For the decision tree model, we can improve the model by utilizing a `cost_matri
 library(C50) # We need this library to run a decision tree model
 
 # Build Model (without weights)
-#dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_train)
+# dt_model <- C5.0(as.factor(fraudulent) ~ ., data = job_dummy_train)
+# saveRDS(dt_model, "dtJobModel.RDS")
 
-dt_model <- C5.0(as.factor(fraudulent) ~ title 
-                 + company_profile 
-                 + description 
-                 + requirements
-                 + benefits
-                 + telecommuting
-                 + has_company_logo
-                 + has_questions
-                 #+ employment_type #<- causes problem
-                 #+ required_experience #<- causes problem
-                 #+ required_education #<- causes problem
-                 + salary_known
-                 + department_clean
-                 #+ industry_clean #<- causes problem
-                 + function_clean
-                 + loc_country_new
-                 , data = job_train)
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
 
-# push through matrix dummy, then push through (janitor - clean names)
-
+dt_model <- readRDS("dtJobModel.RDS")
 plot(dt_model)
 
-dt_model_scaled <- C5.0(as.factor(fraudulent) ~ ., data = job_scaled_train)
-
-plot(dt_model_scaled)
-
-#print(dt_model)
-
 # Predict (without weights)
-dt_pred <- predict(dt_model, job_test)
+dt_pred <- predict(dt_model, job_dummy_test)
 
 # Build Model (with weights)
-cost_matrix <- matrix(c(0, 1, 4, 0), nrow = 2) 
-
+cost_matrix <- matrix(c(0, 1, 6, 0), nrow = 2) 
 cost_matrix # Check the matrix looks correct 
 
-dt_cost_model <- C5.0(as.factor(fraudulent) ~ title 
-                 + company_profile 
-                 + description 
-                 + requirements
-                 + benefits
-                 + telecommuting
-                 + has_company_logo
-                 + has_questions, data = job_train, costs = cost_matrix)
+# dt_cost_model <- C5.0(as.factor(fraudulent) ~ ., data = job_dummy_train, costs = cost_matrix)
+# saveRDS(dt_cost_model, "dtJobModel_2.RDS")
 
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+dt_cost_model <- readRDS("dtJobModel_2.RDS")
 plot(dt_cost_model)
 
 # Predict (with weights)
-dt_weights_pred <- predict(dt_cost_model, job_test)
+dt_weights_pred <- predict(dt_cost_model, job_dummy_test)
 ```
 
 ### SVM Model
@@ -653,16 +684,39 @@ For the SVM model, I can improve the model by changing the kernel. To find the o
 library(kernlab) # We need this library to run a SVM model
 
 # Build Model
-SVM_model <- ksvm(fraudulent ~ ., data = job_train, kernel = "vanilladot")
-#SVM_model <- ksvm(fraudulent ~ ., data = job_train, kernel = "vanilladot", prob.model = TRUE) <- switch to once we finish cleaning data
+# SVM_model <- ksvm(fraudulent ~ ., data = job_train, kernel = "rbfdot")
+# SVM_model_2 <- ksvm(fraudulent ~ ., data = job_train, kernel = "tanhdot")
+# saveRDS(SVM_model, "SVMJobModel.RDS")
+# saveRDS(SVM_model_2, "SVMJobModel_2.RDS")
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+SVM_model <- readRDS("SVMJobModel.RDS")
+SVM_model_2 <- readRDS("SVMJobModel_2.RDS")
+
+# Kernel - Sensitivity | Accuracy
+  # rbfdot - 0.23551 | 0.9605
+  # polydot - 0.184783 | 0.9556
+  # vanilladot - 0.184783 | 0.9556
+  # tanhdot - 0.55072 | 0.5021
+  # laplacedot - 0.159420 | 0.9567
+  # besseldot - 0.29348 | 0.4746
+  # anovadot - 1.00000 | 0.0515
+  # splinedot - NA | NA <- no results after letting run for 30 minutes
+
+# From testing all kernels, we can see that the rbfdot had the highest accuracy and 4th highest sensitivity. We can also see that tanhdot produces the highest sensitivity (however, significantly lower accuracy). As a result, we decided to run these two SVM models to see if higher accuracy or sensitivity will result in a better result. 
 
 # Predict
 SVM_pred <- predict(SVM_model, job_test)
-#SVM_pred <- predict(SVM_model, job_test, type = "probabilities") <- switch to once we finish cleaning data
+SVM_pred_2 <- predict(SVM_model_2, job_test)
 
-SVM_pred_cutoff <- 0.5
+SVM_pred_cutoff <- 0.1 
+# We reduced the cutoff value to 0.1 to reduce the number of false negatives and increase the accuracy and sensitivity of the model.
+SVM_pred_2_cutoff <- 0.3
+# We reduced the cutoff value to 0.3 to reduce the number of false negatives and increase the accuracy and sensitivity of the model.
 
 SVM_bin_prob <- ifelse(SVM_pred >= SVM_pred_cutoff, 1, 0)
+SVM_bin_prob_2 <- ifelse(SVM_pred_2 >= SVM_pred_2_cutoff, 1, 0)
 
 ```
 
@@ -673,8 +727,8 @@ For the random forest model, we can improve the model by modifying the `ntree` a
 library(randomForest) # We need this library to run a random forest model
 
 # Build Model
-#rf_model <- randomForest(as.factor(fraudulent) ~ ., data = job_train, ntree = 2000, nodesize = 5)
-#saveRDS(rf_model, "rfJobModel.RDS")
+# rf_model <- randomForest(as.factor(fraudulent) ~ ., data = job_train, ntree = 2000, nodesize = 5)
+# saveRDS(rf_model, "rfJobModel.RDS")
 # Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
 
 rf_model <- readRDS("rfJobModel.RDS")
@@ -704,13 +758,27 @@ test_X  <- job_scaled_test[, predictor_cols]
 train_y <- job_scaled_train$fraudulent
 
 # Run KNN
-KNN_pred <- knn(
-  train = train_X,
-  test  = test_X,
-  cl    = train_y,   # correct: target vector
-  k     = 15,
-  prob  = TRUE
-)
+# KNN_pred <- knn(train = train_X, test = test_X, cl = train_y, k = 4, prob = TRUE) # We optimized k over the range [2, 100] for accuracy and sensitivity
+# saveRDS(KNN_pred, "KNNJobModel.RDS")
+
+# k = # | Accuracy | Sensitivity
+# k = 100 | 0.9485 | 0.000000
+# k = 75 | 0.9485 | 0.000000
+# k = 50 | 0.9508 | 0.043478
+# k = 40 | 0.9534 | 0.105072
+# k = 30 | 0.9603 | 0.25725
+# k = 20 | 0.9681 | 0.43478
+# k = 10 | 0.9724 | 0.57971
+# k = 5 | 0.9754 | 0.65580
+# k = 4 | 0.9735 | 0.71377 # highest sensitivity
+# k = 3 | 0.9767 | 0.70652 # highest accuracy
+# k = 2 | 0.9674 | 0.81522
+
+# We choose k = 4 since k = 4 and k = 3 have similar results. However, the increase in sensitivity from going from 3 to 4 is larger that the decrease in accuracy from 3 to 4. 
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+KNN_pred <- readRDS("KNNJobModel.RDS")
 
 # Convert KNN "prob" attribute to numeric probabilities
 KNN_prob <- ifelse(KNN_pred == "1",
@@ -718,7 +786,8 @@ KNN_prob <- ifelse(KNN_pred == "1",
                    1 - attr(KNN_pred, "prob"))
 
 # Apply cutoff
-KNN_pred_cutoff <- 0.5
+KNN_pred_cutoff <- 0.3
+# We reduced the cutoff value to 0.3 to reduce the number of false negatives and increase the sensitivity of the model.
 KNN_bin_prob <- ifelse(KNN_prob >= KNN_pred_cutoff, 1, 0)
 
 ```
@@ -748,19 +817,43 @@ library(neuralnet) # We need this library to run a ANN model
 
 # Build Model
 set.seed(12345) # Let's make the randomization "not so random"
-# ANN_model_1 <- neuralnet(fraudulent ~ ., data = job_scaled_train, lifesign = "full", stepmax = 1e8)
-# saveRDS(ANN_model_1, "ANNJobModel_1.RDS")
+#ANN_model_1 <- neuralnet(fraudulent ~ ., data = job_scaled_train, lifesign = "full", stepmax = 1e8)
+#ANN_model_2 <- neuralnet(fraudulent ~ ., data = job_scaled_train, lifesign = "full", stepmax = 1e8, hidden = c(3, 2))
+#ANN_model_3 <- neuralnet(fraudulent ~ ., data = job_scaled_train, lifesign = "full", stepmax = 1e8, hidden = c(5, 3, 2))
+#ANN_model_4 <- neuralnet(fraudulent ~ ., data = job_scaled_train, lifesign = "full", stepmax = 1e8, hidden = c(5, 3, 3, 2))
+#saveRDS(ANN_model_1, "ANNJobModel_1.RDS")
+#saveRDS(ANN_model_2, "ANNJobModel_2.RDS")
+#saveRDS(ANN_model_3, "ANNJobModel_3.RDS")
+#saveRDS(ANN_model_4, "ANNJobModel_4.RDS")
 
 # Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
 
 ANN_model_1 <- readRDS("ANNJobModel_1.RDS")
+ANN_model_2 <- readRDS("ANNJobModel_2.RDS")
+ANN_model_3 <- readRDS("ANNJobModel_3.RDS")
+ANN_model_4 <- readRDS("ANNJobModel_4.RDS")
 
 plot(ANN_model_1, rep = "best")
+plot(ANN_model_2, rep = "best")
+plot(ANN_model_3, rep = "best")
+plot(ANN_model_4, rep = "best")
 
 # Predict
 ANN_pred <- predict(ANN_model_1, job_scaled_test)
-ANN_pred_cutoff <- 0.4 # This is the probability threshold at which we assign the result as 1/positive
+ANN_pred_cutoff <- 0.3 # We reduced the cutoff value to 0.3 to reduce the number of false negatives and increase the accuracy and sensitivity of the model.
 ANN_bin_pred <- ifelse(ANN_pred >= ANN_pred_cutoff, 1, 0)
+
+ANN_pred_2 <- predict(ANN_model_2, job_scaled_test)
+ANN_pred_cutoff_2 <- 0.3 # We reduced the cutoff value to 0.3 to increase the sensitivity of the model.
+ANN_bin_pred_2 <- ifelse(ANN_pred_2 >= ANN_pred_cutoff_2, 1, 0)
+
+ANN_pred_3 <- predict(ANN_model_3, job_scaled_test)
+ANN_pred_cutoff_3 <- 0.2 # We reduced the cutoff value to 0.2 to reduce the number of false negatives and increase the sensitivity of the model.
+ANN_bin_pred_3 <- ifelse(ANN_pred_3 >= ANN_pred_cutoff_3, 1, 0)
+
+ANN_pred_4 <- predict(ANN_model_4, job_scaled_test)
+ANN_pred_cutoff_4 <- 0.2 # We reduced the cutoff value to 0.2 to reduce the number of false negatives and increase the sensitivity of the model.
+ANN_bin_pred_4 <- ifelse(ANN_pred_4 >= ANN_pred_cutoff_4, 1, 0)
 
 ```
 
@@ -768,14 +861,15 @@ ANN_bin_pred <- ifelse(ANN_pred >= ANN_pred_cutoff, 1, 0)
 We will now take the prediction results of the various models and create a new data set to build the stacked model off of. Similar to the normal work flow, we will split the data, then use it to the build the 2nd level decision tree model. Finally, we will use the decision tree model produced to predict the test data set. We will also used a cost matrix to optimize the model. 
 
 ```{r}
-# Combine the predictions of the 6 individual models into a new data frame
+# Combine the predictions of the 7 individual models into a new data frame
 stacked_data <- data.frame(
       lr_pred = c(lr_pred),
       dt_pred = c(dt_pred), 
       SVM_pred = c(SVM_pred),
+      SVM_pred_2 = c(SVM_pred_2),
       rf_pred = c(rf_pred),
       KNN_pred = c(KNN_prob), 
-      ANN_pred = c(ANN_pred),
+      ANN_pred = c(ANN_pred_3),
       actual = c(job_test$fraudulent)
     )
 
@@ -798,18 +892,28 @@ summary(stacked_test$actual)
 # Build and predict a decision tree model as a model stacked on top the other five models 
 
 # Build Model (without weights)
-stacked_unweighted_model <- C5.0(as.factor(actual) ~ ., data = stacked_train)
+# stacked_unweighted_model <- C5.0(as.factor(actual) ~ ., data = stacked_train)
+# saveRDS(stacked_unweighted_model, "stackedJobModel.RDS")
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+stacked_unweighted_model <- readRDS("stackedJobModel.RDS")
 plot(stacked_unweighted_model)
 
 # Build Model (with weights)
-stacked_cost_matrix <- matrix(c(0, 1, 3, 0), nrow = 2) 
+stacked_cost_matrix <- matrix(c(0, 1, 5, 0), nrow = 2) 
 
 stacked_cost_matrix # Check the matrix looks correct 
 
-stacked_model <- C5.0(as.factor(actual) ~ ., data = stacked_train, costs = stacked_cost_matrix)
+# stacked_model <- C5.0(as.factor(actual) ~ ., data = stacked_train, costs = stacked_cost_matrix)
+# saveRDS(stacked_model, "stackedJobModel_2.RDS")
+
+# Since I have saved the model above, I can comment out the code above so that the model does not re-run each time I knit my file
+
+stacked_model <- readRDS("stackedJobModel_2.RDS")
 plot(stacked_model)
 
-# Predict (with weights)
+# Predict (without weights)
 stacked_unweighted_pred <- predict(stacked_unweighted_model, stacked_test)
 
 # Predict (with weights)
@@ -837,6 +941,7 @@ cm_lr
 ```{r}
 # Decision Tree Model (without weights)
 cm_unweighted_dt <- confusionMatrix(as.factor(dt_pred), as.factor(job_test$fraudulent), positive = "1")
+# Looking at the confusion matrix, we need to apply a cost matrix. In this situation, the false negatives are extremely costly. As such, we want to apply a cost matrix that weights the false negatives appropriately. I will apply a cost matrix that costs false negatives at 6:1 ratio to false positives to reduce the number of false negatives. However, this will increase the number of false positives. However, we are not as concerned about this as it is less costly to deal with jobs posts that are falsely flagged than fraudulent posts that are missed. 
 cm_unweighted_dt
 
 # Decision Tree Model (with weights)
@@ -844,10 +949,13 @@ cm_dt <- confusionMatrix(as.factor(dt_weights_pred), as.factor(job_test$fraudule
 cm_dt
 ```
 
-### SVM Model
+### SVM Models
 ```{r}
 cm_SVM <- confusionMatrix(as.factor(SVM_bin_prob), as.factor(job_test$fraudulent), positive = "1")
 cm_SVM
+
+cm_SVM_2 <- confusionMatrix(as.factor(SVM_bin_prob_2), as.factor(job_test$fraudulent), positive = "1")
+cm_SVM_2
 ```
 
 ### Random Forest
@@ -858,7 +966,7 @@ cm_rf
 
 ### KNN Model
 ```{r}
-cm_KNN <- confusionMatrix(as.factor(KNN_bin_prob), as.factor(job_scaled_test[,72]), positive = "1")
+cm_KNN <- confusionMatrix(as.factor(KNN_bin_prob), as.factor(job_scaled_test[,35]), positive = "1")
 cm_KNN
 ```
 
@@ -866,12 +974,38 @@ cm_KNN
 ```{r}
 cm_ANN <- confusionMatrix(as.factor(ANN_bin_pred), as.factor(job_scaled_test$fraudulent), positive = "1")
 cm_ANN
+
+cm_ANN_2 <- confusionMatrix(as.factor(ANN_bin_pred_2), as.factor(job_scaled_test$fraudulent), positive = "1")
+cm_ANN_2
+
+cm_ANN_3 <- confusionMatrix(as.factor(ANN_bin_pred_3), as.factor(job_scaled_test$fraudulent), positive = "1")
+cm_ANN_3
+
+cm_ANN_4 <- confusionMatrix(as.factor(ANN_bin_pred_4), as.factor(job_scaled_test$fraudulent), positive = "1")
+cm_ANN_4
 ```
+
+#### ANN Model Comparison
+```{r class.source = 'fold-hide'}
+ANN_Comparison <- data.frame(
+  "Model" = c("ANN_1", "ANN_2", "ANN_3", "ANN_4"),
+  "Accuracy" = c(round(cm_ANN$overall["Accuracy"], 4), round(cm_ANN_2$overall["Accuracy"], 4), round(cm_ANN_3$overall["Accuracy"], 4), round(cm_ANN_4$overall["Accuracy"], 4)),
+  "Sensitivity" = c(round(cm_ANN$byClass["Sensitivity"], 4), round(cm_ANN_2$byClass["Sensitivity"], 4), round(cm_ANN_3$byClass["Sensitivity"], 4), round(cm_ANN_4$byClass["Sensitivity"], 4)),
+  "Kappa" = c(round(cm_ANN$overall["Kappa"], 4), round(cm_ANN_2$overall["Kappa"], 4), round(cm_ANN_3$overall["Kappa"], 4), round(cm_ANN_4$overall["Kappa"])),
+  "P-Value" = c(round(cm_ANN$overall["AccuracyPValue"], 4), round(cm_ANN_2$overall["AccuracyPValue"], 4), round(cm_ANN_3$overall["AccuracyPValue"], 4), round(cm_ANN_4$overall["AccuracyPValue"], 4))
+)
+
+kable(ANN_Comparison, format = "markdown")
+```
+
+Looking at these 4 models, I will use **ANN_3**, as it has the highest sensitivity of `r round(cm_ANN_3$byClass["Sensitivity"], 4)`. However, this higher sensitivity does come at a trade-off of lower accuracy. I will use this model for the implementation step, along with feeding it into the stacked model.
+
 
 ### Stacked Model
 ```{r}
 # Raw data values
 cm_unweight_stacked <- confusionMatrix(as.factor(stacked_unweighted_pred), as.factor(stacked_test$actual), positive = "1")
+# Looking at the confusion matrix, we need to apply a cost matrix. In this situation, the false negatives are extremely costly. As such, we want to apply a cost matrix that weights the false negatives appropriately. I will apply a cost matrix that costs false negatives at 5:1 ratio to false positives to reduce the number of false negatives. However, this will increase the number of false positives. However, we are not as concerned about this as it is less costly to deal with jobs posts that are falsely flagged than fraudulent posts that are missed. 
 cm_unweight_stacked
 
 cm_stacked <- confusionMatrix(as.factor(stacked_pred), as.factor(stacked_test$actual), positive = "1")
@@ -880,27 +1014,54 @@ cm_stacked
 ### Model Comparison
 ```{r class.source = 'fold-hide'}
 Model_Comparison <- data.frame(
-  "Model" = c("Logistic Regression", "Decision Tree (weights)", "SVM", "Random Forest", "KNN", "ANN", "Stacked Model"),
-  "Accuracy" = c(round(cm_lr$overall["Accuracy"], 4), round(cm_dt$overall["Accuracy"], 4), round(cm_SVM$overall["Accuracy"], 4), round(cm_rf$overall["Accuracy"], 4), round(cm_KNN$overall["Accuracy"], 4), round(cm_ANN$overall["Accuracy"], 4), round(cm_stacked$overall["Accuracy"], 4)),
-  "Sensitivity" = c(round(cm_lr$byClass["Sensitivity"], 4), round(cm_dt$byClass["Sensitivity"], 4), round(cm_SVM$byClass["Sensitivity"], 4), round(cm_rf$byClass["Sensitivity"], 4), round(cm_KNN$byClass["Sensitivity"], 4), round(cm_ANN$byClass["Sensitivity"], 4), round(cm_stacked$byClass["Sensitivity"], 4)),
-  "Kappa" = c(round(cm_lr$overall["Kappa"], 4), round(cm_dt$overall["Kappa"], 4), round(cm_SVM$overall["Kappa"], 4), round(cm_rf$overall["Kappa"], 4), round(cm_KNN$overall["Kappa"], 4), round(cm_ANN$overall["Kappa"], 4), round(cm_stacked$overall["Kappa"], 4)),
-  "P-Value" = c(round(cm_lr$overall["AccuracyPValue"], 4), round(cm_dt$overall["AccuracyPValue"], 4), round(cm_SVM$overall["AccuracyPValue"], 4), round(cm_rf$overall["AccuracyPValue"], 4), round(cm_KNN$overall["AccuracyPValue"], 4), round(cm_ANN$overall["AccuracyPValue"], 4), round(cm_stacked$overall["AccuracyPValue"], 4))
+  "Model" = c("Logistic Regression", "Decision Tree (weights)", "SVM", "SVM_2", "Random Forest", "KNN", "ANN", "Stacked Model"),
+  "Accuracy" = c(round(cm_lr$overall["Accuracy"], 4), 
+                 round(cm_dt$overall["Accuracy"], 4), 
+                 round(cm_SVM$overall["Accuracy"], 4), 
+                 round(cm_SVM_2$overall["Accuracy"], 4), 
+                 round(cm_rf$overall["Accuracy"], 4), 
+                 round(cm_KNN$overall["Accuracy"], 4), 
+                 round(cm_ANN$overall["Accuracy"], 4), 
+                 round(cm_stacked$overall["Accuracy"], 4)),
+  "Sensitivity" = c(round(cm_lr$byClass["Sensitivity"], 4), 
+                    round(cm_dt$byClass["Sensitivity"], 4), 
+                    round(cm_SVM$byClass["Sensitivity"], 4), 
+                    round(cm_SVM_2$byClass["Sensitivity"], 4),
+                    round(cm_rf$byClass["Sensitivity"], 4), 
+                    round(cm_KNN$byClass["Sensitivity"], 4), 
+                    round(cm_ANN$byClass["Sensitivity"], 4), 
+                    round(cm_stacked$byClass["Sensitivity"], 4)),
+  "Kappa" = c(round(cm_lr$overall["Kappa"], 4), 
+              round(cm_dt$overall["Kappa"], 4), 
+              round(cm_SVM$overall["Kappa"], 4), 
+              round(cm_SVM_2$overall["Kappa"], 4), 
+              round(cm_rf$overall["Kappa"], 4), 
+              round(cm_KNN$overall["Kappa"], 4), 
+              round(cm_ANN$overall["Kappa"], 4), 
+              round(cm_stacked$overall["Kappa"], 4)),
+  "P-Value" = c(round(cm_lr$overall["AccuracyPValue"], 4), 
+                round(cm_dt$overall["AccuracyPValue"], 4), 
+                round(cm_SVM$overall["AccuracyPValue"], 4), 
+                round(cm_SVM_2$overall["AccuracyPValue"], 4), 
+                round(cm_rf$overall["AccuracyPValue"], 4), 
+                round(cm_KNN$overall["AccuracyPValue"], 4), 
+                round(cm_ANN$overall["AccuracyPValue"], 4), 
+                round(cm_stacked$overall["AccuracyPValue"], 4))
 )
 
 kable(Model_Comparison, format = "markdown")
 ```
 
 * The **Random Forest** model has the highest accuracy
-* The **Decision Tree** model has the highest sensitivity
-* The **Stacked** model has the highest kappa
-* The **Random Forest, ANN, and Stacked** models has the smallest p-value
+* The **Stacked** model has the highest sensitivity
+* The **Random Forest** model has the highest kappa
+* The **KNN** model has the smallest p-value
 
 **Stacked Model** <br>
-Comparing the stacked model to the individual models,...
+Comparing the stacked model to the individual models, the stacked model has the third highest accuracy (`r  round(cm_stacked$overall["Accuracy"], 4)`). It does have the highest sensitivity (`r round(cm_stacked$byClass["Sensitivity"], 4)`). It has the second highest kappa (just behind the Random Forest model). Lastly, while it does not have the smallest p-value, it does have a p-value of `r round(cm_stacked$overall["AccuracyPValue"], 4)`, showing the model is significant.
 
 ## Step 7: Implement Model
 Now that the models are created and evaluated, it is time to implement the models and see the financial impacts. It is important to also calculate the financial impact of having no model. I make assumptions (below) for the financial data I am missing. 
-
 
 ### Assumptions
 
@@ -911,6 +1072,7 @@ Now that the models are created and evaluated, it is time to implement the model
 * For **false negatives**, these are job postings that our model does not flag as fraudulent but actually are. As a result, the site users who apply to this posting risk their time being wasted or even worse, their information being stolen. This would cost a total of **$500**. 
   * This would cost $100 in conducting a formal investigation to remove this post (after the fact) and then investigate any other fraudulent posts related to this on. 
   * This would "cost" $400 in harm to the many hundreds of applicants who applied. If there were 500 applications, it would be about $0.80 per applicant. 
+* Being able to identify fraudulent posts increase confidence in the sight. As a result, more companies will post jobs and more people will use the site to find and apply to jobs. This is valued at **`fraud_identification_rate` * $1,000,000**
 
 *Note: Results will be scaled up to 100,000 posts so (they are comparable)*
 
@@ -923,6 +1085,7 @@ num_posts = 100000
 nm_scalar = num_posts/nrow(job)
 m_scalar = num_posts/nrow(job_test)
 sm_scalar = num_posts/nrow(stacked_test)
+bonus <- 1000000
 ```
 
 
@@ -931,176 +1094,148 @@ sm_scalar = num_posts/nrow(stacked_test)
 nm_frad = sum(job$fraudulent) * nm_scalar
 nm_total_cost = nm_frad * fn_cost
 ```
-With no model, there would be no way of flagging fraudulent posts ahead of time. As a result, we end up treating all posts as non-fraudulent. Therefore, we miss **`r format(round(nm_frad, 0), big.mark = ",")` (all) fraudulent posts**, costing **$`r format(round(nm_total_cost, 2), big.mark = ",")`**.
+With no model, there would be no way of flagging fraudulent posts ahead of time. As a result, we end up treating all posts as non-fraudulent. Therefore, we miss **`r format(round(nm_frad, 0), big.mark = ",")` (all) fraudulent posts**, costing **\$`r format(round(nm_total_cost, 2), big.mark = ",")`**.
 
 #### Logistic Regression Model
 ```{r class.source = 'fold-hide'}
 lr_fp_cost = fp_cost * cm_lr$table["1", "0"] * m_scalar
 lr_fn_cost = fn_cost * cm_lr$table["0", "1"] * m_scalar
-lr_total_cost = lr_fp_cost + lr_fn_cost
+lr_suc_rate = (cm_lr$table["1", "1"] * m_scalar) / nm_frad
+lr_bonus = bonus * lr_suc_rate
+lr_total_cost = lr_fp_cost + lr_fn_cost - lr_bonus
 ```
-With a model, we ended up with **`r format(round(cm_lr$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(lr_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_lr$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(lr_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(lr_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_lr$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(lr_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_lr$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(lr_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(lr_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(lr_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(lr_total_cost, 2), big.mark = ",")`**.
 
 #### Decision Tree Model
 ```{r class.source = 'fold-hide'}
 dt_fp_cost = fp_cost * cm_dt$table["1", "0"] * m_scalar
 dt_fn_cost = fn_cost * cm_dt$table["0", "1"] * m_scalar
-dt_total_cost = dt_fp_cost + dt_fn_cost
+dt_suc_rate = (cm_dt$table["1", "1"] * m_scalar) / nm_frad
+dt_bonus = bonus * dt_suc_rate
+dt_total_cost = dt_fp_cost + dt_fn_cost - dt_bonus
 ```
-With a model, we ended up with **`r format(round(cm_dt$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(dt_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_dt$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(dt_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(dt_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_dt$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(dt_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_dt$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(dt_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(dt_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(dt_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(dt_total_cost, 2), big.mark = ",")`**.
 
 #### SVM Model
 ```{r class.source = 'fold-hide'}
 SVM_fp_cost = fp_cost * cm_SVM$table["1", "0"] * m_scalar
 SVM_fn_cost = fn_cost * cm_SVM$table["0", "1"] * m_scalar
-SVM_total_cost = SVM_fp_cost + SVM_fn_cost
+SVM_suc_rate = (cm_SVM$table["1", "1"] * m_scalar) / nm_frad
+SVM_bonus = bonus * SVM_suc_rate
+SVM_total_cost = SVM_fp_cost + SVM_fn_cost - SVM_bonus
 ```
-With a model, we ended up with **`r format(round(cm_SVM$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(SVM_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_SVM$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(SVM_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(SVM_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_SVM$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(SVM_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_SVM$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(SVM_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(SVM_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(SVM_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(SVM_total_cost, 2), big.mark = ",")`**.
+
+#### SVM Model 2
+```{r class.source = 'fold-hide'}
+SVM_fp_cost_2 = fp_cost * cm_SVM_2$table["1", "0"] * m_scalar
+SVM_fn_cost_2 = fn_cost * cm_SVM_2$table["0", "1"] * m_scalar
+SVM_suc_rate_2 = (cm_SVM_2$table["1", "1"] * m_scalar) / nm_frad
+SVM_bonus_2 = bonus * SVM_suc_rate_2
+SVM_total_cost_2 = SVM_fp_cost_2 + SVM_fn_cost_2 - SVM_bonus_2
+```
+With a model, we ended up with **`r format(round(cm_SVM_2$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(SVM_fp_cost_2, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_SVM_2$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(SVM_fn_cost_2, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(SVM_suc_rate_2, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(SVM_bonus_2, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(SVM_total_cost_2, 2), big.mark = ",")`**.
 
 #### Random Forest
 ```{r class.source = 'fold-hide'}
 rf_fp_cost = fp_cost * cm_rf$table["1", "0"] * m_scalar
 rf_fn_cost = fn_cost * cm_rf$table["0", "1"] * m_scalar
-rf_total_cost = rf_fp_cost + rf_fn_cost
+rf_suc_rate = (cm_rf$table["1", "1"] * m_scalar) / nm_frad
+rf_bonus = bonus * rf_suc_rate
+rf_total_cost = rf_fp_cost + rf_fn_cost - rf_bonus
 ```
-With a model, we ended up with **`r format(round(cm_rf$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(rf_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_rf$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(rf_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(rf_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_rf$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(rf_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_rf$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(rf_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(rf_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(rf_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(rf_total_cost, 2), big.mark = ",")`**.
 
 #### KNN Model
 ```{r class.source = 'fold-hide'}
 KNN_fp_cost = fp_cost * cm_KNN$table["1", "0"] * m_scalar
 KNN_fn_cost = fn_cost * cm_KNN$table["0", "1"] * m_scalar
-KNN_total_cost = KNN_fp_cost + KNN_fn_cost
+KNN_suc_rate = (cm_KNN$table["1", "1"] * m_scalar) / nm_frad
+KNN_bonus = bonus * KNN_suc_rate
+KNN_total_cost = KNN_fp_cost + KNN_fn_cost - KNN_bonus
 ```
-With a model, we ended up with **`r format(round(cm_KNN$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(KNN_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_KNN$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(KNN_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(KNN_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_KNN$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(KNN_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_KNN$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(KNN_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(KNN_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(KNN_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(KNN_total_cost, 2), big.mark = ",")`**.
 
 #### ANN Model
 ```{r class.source = 'fold-hide'}
-ANN_fp_cost = fp_cost * cm_ANN$table["1", "0"] * m_scalar
-ANN_fn_cost = fn_cost * cm_ANN$table["0", "1"] * m_scalar
-ANN_total_cost = ANN_fp_cost + ANN_fn_cost
+ANN_fp_cost = fp_cost * cm_ANN_3$table["1", "0"] * m_scalar
+ANN_fn_cost = fn_cost * cm_ANN_3$table["0", "1"] * m_scalar
+ANN_suc_rate = (cm_ANN$table["1", "1"] * m_scalar) / nm_frad
+ANN_bonus = bonus * ANN_suc_rate
+ANN_total_cost = ANN_fp_cost + ANN_fn_cost - ANN_bonus
 ```
-With a model, we ended up with **`r format(round(cm_ANN$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(ANN_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_ANN$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(ANN_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(ANN_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_ANN_3$table["1", "0"] * m_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(ANN_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_ANN_3$table["0", "1"] * m_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(ANN_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(ANN_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(ANN_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(ANN_total_cost, 2), big.mark = ",")`**.
 
 #### Stacked Model
 ```{r class.source = 'fold-hide'}
 stacked_fp_cost = fp_cost * cm_stacked$table["1", "0"] * sm_scalar
 stacked_fn_cost = fn_cost * cm_stacked$table["0", "1"] * sm_scalar
-stacked_total_cost = stacked_fp_cost + stacked_fn_cost
+stacked_suc_rate = (cm_stacked$table["1", "1"] * sm_scalar) / nm_frad
+stacked_bonus = bonus * stacked_suc_rate
+stacked_total_cost = stacked_fp_cost + stacked_fn_cost - stacked_bonus
 ```
-With a model, we ended up with **`r format(round(cm_stacked$table["1", "0"] * sm_scalar, 0), big.mark = ",")` false positives**, costing **$`r format(round(stacked_fp_cost, 2), big.mark = ",")`**. 
-We ended up with **`r format(round(cm_stacked$table["0", "1"] * sm_scalar, 0), big.mark = ",")` false negatives**, costing **$`r format(round(stacked_fn_cost, 2), big.mark = ",")`**. 
-So, the total cost the job posting site company incurs is **$`r format(round(stacked_total_cost, 2), big.mark = ",")`**.
+With a model, we ended up with **`r format(round(cm_stacked$table["1", "0"] * sm_scalar, 0), big.mark = ",")` false positives**, costing **\$`r format(round(stacked_fp_cost, 2), big.mark = ",")`**. 
+We ended up with **`r format(round(cm_stacked$table["0", "1"] * sm_scalar, 0), big.mark = ",")` false negatives**, costing **\$`r format(round(stacked_fn_cost, 2), big.mark = ",")`**. 
+This model has a fraud success identification rate of **`r format(round(stacked_suc_rate, 2), big.mark = ",")`**, resulting in a benefit of **\$`r format(round(stacked_bonus, 2), big.mark = ",")`**. 
+So, the total cost the job posting site company incurs is **\$`r format(round(stacked_total_cost, 2), big.mark = ",")`**.
 
 ### Results
-```{r}
+```{r class.source = 'fold-hide'}
 results <- data.frame(
-  "Model" = c("No Model", "Logistic Regression", "Decision Tree", "SVM", "Random Forest", "KNN", "ANN", "Stacked Model"),
-  "Accuracy" = c(0, round(cm_lr$overall["Accuracy"], 4), round(cm_dt$overall["Accuracy"], 4), round(cm_SVM$overall["Accuracy"], 4), round(cm_rf$overall["Accuracy"], 4), round(cm_KNN$overall["Accuracy"], 4), round(cm_ANN$overall["Accuracy"], 4), round(cm_stacked$overall["Accuracy"], 4)),
-  "Sensitivity" = c(0, round(cm_lr$byClass["Sensitivity"], 4), round(cm_dt$byClass["Sensitivity"], 4), round(cm_SVM$byClass["Sensitivity"], 4), round(cm_rf$byClass["Sensitivity"], 4), round(cm_KNN$byClass["Sensitivity"], 4), round(cm_ANN$byClass["Sensitivity"], 4), round(cm_stacked$byClass["Sensitivity"], 4))
+  "Model" = c("No Model", "Logistic Regression", "Decision Tree", "SVM", "SVM_2", "Random Forest", "KNN", "ANN", "Stacked Model"),
+  "Accuracy" = c(0, round(cm_lr$overall["Accuracy"], 4), 
+                 round(cm_dt$overall["Accuracy"], 4), 
+                 round(cm_SVM$overall["Accuracy"], 4), 
+                 round(cm_SVM_2$overall["Accuracy"], 4), 
+                 round(cm_rf$overall["Accuracy"], 4), 
+                 round(cm_KNN$overall["Accuracy"], 4), 
+                 round(cm_ANN$overall["Accuracy"], 4), 
+                 round(cm_stacked$overall["Accuracy"], 4)),
+  "Sensitivity" = c(0, round(cm_lr$byClass["Sensitivity"], 4), 
+                    round(cm_dt$byClass["Sensitivity"], 4), 
+                    round(cm_SVM$byClass["Sensitivity"], 4), 
+                    round(cm_SVM_2$byClass["Sensitivity"], 4), 
+                    round(cm_rf$byClass["Sensitivity"], 4), 
+                    round(cm_KNN$byClass["Sensitivity"], 4), 
+                    round(cm_ANN$byClass["Sensitivity"], 4), round(cm_stacked$byClass["Sensitivity"], 4))
 )
-results$FP_Cost <- c(0, lr_fp_cost, dt_fp_cost, SVM_fp_cost, rf_fp_cost, KNN_fp_cost, ANN_fp_cost, stacked_fp_cost)
-results$FN_Cost <- c(nm_total_cost, lr_fn_cost, dt_fn_cost, SVM_fn_cost, rf_fn_cost, KNN_fn_cost, ANN_fn_cost, stacked_fn_cost)
-results$Total_Cost <- c(nm_total_cost, lr_total_cost, dt_total_cost, SVM_total_cost, rf_total_cost, KNN_total_cost, ANN_total_cost, stacked_total_cost)
+results$FP_Cost <- c(0, lr_fp_cost, dt_fp_cost, SVM_fp_cost, SVM_fp_cost_2, rf_fp_cost, KNN_fp_cost, ANN_fp_cost, stacked_fp_cost)
+results$FN_Cost <- c(nm_total_cost, lr_fn_cost, dt_fn_cost, SVM_fn_cost, SVM_fn_cost_2, rf_fn_cost, KNN_fn_cost, ANN_fn_cost, stacked_fn_cost)
+results$Benefit <- c(0, lr_bonus, dt_bonus, SVM_bonus, SVM_bonus_2, rf_bonus, KNN_bonus, ANN_bonus, stacked_bonus)
+results$Total_Cost <- c(nm_total_cost, lr_total_cost, dt_total_cost, SVM_total_cost, SVM_total_cost_2, rf_total_cost, KNN_total_cost, ANN_total_cost, stacked_total_cost)
 results$Cost_Savings <- (nm_total_cost - results$Total_Cost)
 
 results$FP_Cost <- format(round(results$FP_Cost, 2), big.mark = ",")
 results$FN_Cost <- format(round(results$FN_Cost, 2), big.mark = ",")
+results$Benefit <- format(round(results$Benefit, 2), big.mark = ",")
 results$Total_Cost <- format(round(results$Total_Cost, 2), big.mark = ",")
 results$Cost_Savings <- format(round(results$Cost_Savings, 2), big.mark = ",")
 
 kable(results, format = "markdown", digits = 4)
 ```
 
+The **stacked** model is the best model. 
 
 ### Conclusion 
-
-
-# OLD CODE
-
-### KNN
-
-```{r, eval=FALSE}
-library(caret)
-library(pROC)
-
-set.seed(12345)
-
-
-if (!exists("job_train") || !exists("job_test")) {
-  if (!exists("job")) stop("Provide `job` or predefine `job_train`/`job_test`.")
-  idx <- createDataPartition(job$fraudulent, p = 0.7, list = FALSE)
-  job_train <- job[idx, ]
-  job_test  <- job[-idx, ]
-}
-
-
-to_yes <- function(x) ifelse(x %in% c(1,"1","Yes","TRUE","True",TRUE), "Yes", "No")
-job_train$fraudulent <- factor(to_yes(job_train$fraudulent), levels = c("No","Yes"))
-job_test$fraudulent  <- factor(to_yes(job_test$fraudulent),  levels = c("No","Yes"))
-
-
-pred_cols <- setdiff(names(job_train), "fraudulent")
-num_cols  <- pred_cols[sapply(job_train[, pred_cols, drop=FALSE], is.numeric)]
-if (length(num_cols) == 0) stop("No numeric predictors found. Add some numeric features first.")
-
-x_train <- job_train[, num_cols, drop = FALSE]
-y_train <- job_train$fraudulent
-x_test  <- job_test[,  num_cols, drop = FALSE]
-y_test  <- job_test$fraudulent
-
-
-ctrl <- trainControl(
-  method = "cv",
-  number = 3,
-  classProbs = TRUE,
-  summaryFunction = twoClassSummary,
-  savePredictions = "final"
-)
-
-
-k_grid <- data.frame(k = c(5, 9, 13, 17, 21))
-
-
-set.seed(12345)
-knn_fit <- train(
-  x = x_train,
-  y = y_train,
-  method = "knn",
-  metric = "ROC",
-  trControl = ctrl,
-  preProcess = c("zv","center","scale"),
-  tuneGrid = k_grid
-)
-
-print(knn_fit)
-plot(knn_fit)  
-
-
-prob <- predict(knn_fit, newdata = x_test, type = "prob")[, "Yes"]
-cls05 <- factor(ifelse(prob >= 0.50, "Yes", "No"), levels = c("No","Yes"))
-cls03 <- factor(ifelse(prob >= 0.30, "Yes", "No"), levels = c("No","Yes"))
-
-cm05 <- confusionMatrix(cls05, y_test, positive = "Yes")
-cm03 <- confusionMatrix(cls03, y_test, positive = "Yes")
-
-cat("\nConfusion Matrix @ 0.50:\n"); print(cm05)
-cat("\nConfusion Matrix @ 0.30:\n"); print(cm03)
-
-
-roc_obj <- roc(response = y_test, predictor = prob, levels = c("No","Yes"), direction = "<")
-cat("\nAUC:\n"); print(auc(roc_obj))
-plot(roc_obj, main = "KNN ROC (Numeric predictors)")
-```
 
